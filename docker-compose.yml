@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: agentkey-postgres
+    environment:
+      POSTGRES_DB: agentkey
+      POSTGRES_USER: agentkey_user
+      POSTGRES_PASSWORD: agentkey_secure_password_123
+    volumes:
+      - agentkey_postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - agentkey-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agentkey_user -d agentkey"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: agentkey-redis
+    volumes:
+      - agentkey_redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - agentkey-network
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  agentkey_postgres_data:
+    driver: local
+  agentkey_redis_data:
+    driver: local
+
+networks:
+  agentkey-network:
+    driver: bridge

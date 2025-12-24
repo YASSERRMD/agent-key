@@ -1,0 +1,87 @@
+[package]
+name = "agentkey_backend"
+version = "0.1.0"
+edition = "2021"
+authors = ["YASSERRMD"]
+description = "Agent-Native Credential Management Platform"
+repository = "https://github.com/YASSERRMD/agent-key"
+license = "MIT"
+
+[dependencies]
+# Web framework
+actix-web = "4.4"
+actix-rt = "2.9"
+actix-cors = "0.7"
+
+# Async runtime
+tokio = { version = "1.35", features = ["full"] }
+
+# Database - PostgreSQL
+sqlx = { version = "0.7", features = [
+    "runtime-tokio-rustls",
+    "postgres",
+    "uuid",
+    "chrono",
+    "json",
+    "macros",
+    "migrate"
+] }
+
+# Redis
+redis = { version = "0.24", features = ["aio", "tokio-comp", "connection-manager"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Encryption (AES-256-GCM)
+aes-gcm = "0.10"
+rand = "0.8"
+hex = "0.4"
+
+# JWT
+jsonwebtoken = "9.2"
+
+# Password hashing
+bcrypt = "0.15"
+
+# UUID
+uuid = { version = "1.6", features = ["v4", "serde"] }
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Logging & Tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-actix-web = "0.7"
+
+# Configuration
+dotenvy = "0.15"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Validation
+validator = { version = "0.16", features = ["derive"] }
+
+# Future utilities
+futures = "0.3"
+
+[dev-dependencies]
+actix-rt = "2.9"
+tokio-test = "0.4"
+once_cell = "1.19"
+
+[[bin]]
+name = "agentkey_backend"
+path = "src/main.rs"
+
+[profile.dev]
+opt-level = 0
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
