@@ -34,6 +34,9 @@ pub struct AppState {
 use std::sync::Arc;
 use crate::services::jwt::JwtService;
 use crate::services::agent::AgentService;
+use crate::services::encryption::EncryptionService;
+use crate::services::credential::CredentialService;
+use crate::services::ephemeral_token::EphemeralTokenService;
 
 // ...
 
@@ -56,7 +59,18 @@ pub async fn run(
     ));
 
     let agent_service = web::Data::new(AgentService::new(jwt_service.clone()));
+    
+    let encryption_service = Arc::new(EncryptionService::new(
+        config.encryption_key.clone(),
+    ).expect("Failed to initialize encryption service"));
+    let credential_service = web::Data::new(CredentialService::new(encryption_service.clone()));
+    let ephemeral_token_service = web::Data::new(EphemeralTokenService::new(
+        config.jwt_secret.clone(),
+        encryption_service.clone(),
+    ));
+    
     let db_pool = web::Data::new(db.pool().clone());
+    let jwt_service_data = web::Data::new(jwt_service.clone());
 
     info!("Configuring HTTP server...");
 
@@ -72,6 +86,9 @@ pub async fn run(
             .app_data(state.clone())
             .app_data(db_pool.clone())
             .app_data(agent_service.clone())
+            .app_data(credential_service.clone())
+            .app_data(jwt_service_data.clone())
+            .app_data(ephemeral_token_service.clone())
             // Middleware
             .wrap(TracingLogger::default())
             .wrap(cors)

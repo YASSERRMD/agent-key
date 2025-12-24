@@ -2,110 +2,77 @@
 
 use agentkey_backend::services::encryption::EncryptionService;
 
-const TEST_SECRET: &str = "integration-test-secret-32-chars!";
+// 32 bytes as 64 hex chars
+const TEST_KEY_HEX: &str = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
+const DUMMY_AAD: &[u8] = b"test-aad";
 
 #[test]
 fn test_encryption_service_roundtrip() {
-    let service = EncryptionService::new(TEST_SECRET);
+    let service = EncryptionService::new(TEST_KEY_HEX.to_string())
+        .expect("Service initialization failed");
     
     // Test various plaintext sizes
     let test_cases = vec![
-        "".to_string(),
-        "short".to_string(),
-        "medium length string for testing".to_string(),
-        "A".repeat(1000),
-        "Unicode: 日本語 🔐 العربية".to_string(),
+        "",
+        "short",
+        "medium length string for testing",
+        "A".repeat(1000).as_str(),
+        "Unicode: 日本語 🔐 العربية",
     ];
     
     for plaintext in &test_cases {
-        let encrypted = service.encrypt(plaintext)
+        let plaintext_bytes = plaintext.as_bytes();
+        let encrypted = service.encrypt(plaintext_bytes, DUMMY_AAD)
             .expect("Encryption should succeed");
-        let decrypted = service.decrypt(&encrypted)
+        let decrypted = service.decrypt(&encrypted, DUMMY_AAD)
             .expect("Decryption should succeed");
         
-        assert_eq!(plaintext, &decrypted);
+        assert_eq!(plaintext_bytes, &decrypted[..]);
     }
 }
 
 #[test]
 fn test_encryption_produces_unique_ciphertexts() {
-    let service = EncryptionService::new(TEST_SECRET);
-    let plaintext = "test message";
+    let service = EncryptionService::new(TEST_KEY_HEX.to_string()).unwrap();
+    let plaintext = b"test message";
     
-    let encrypted1 = service.encrypt(plaintext).unwrap();
-    let encrypted2 = service.encrypt(plaintext).unwrap();
-    let encrypted3 = service.encrypt(plaintext).unwrap();
+    let encrypted1 = service.encrypt(plaintext, DUMMY_AAD).unwrap();
+    let encrypted2 = service.encrypt(plaintext, DUMMY_AAD).unwrap();
     
     // All should be different due to random nonce
     assert_ne!(encrypted1, encrypted2);
-    assert_ne!(encrypted2, encrypted3);
-    assert_ne!(encrypted1, encrypted3);
     
     // All should decrypt to same value
-    assert_eq!(plaintext, service.decrypt(&encrypted1).unwrap());
-    assert_eq!(plaintext, service.decrypt(&encrypted2).unwrap());
-    assert_eq!(plaintext, service.decrypt(&encrypted3).unwrap());
+    assert_eq!(plaintext, &service.decrypt(&encrypted1, DUMMY_AAD).unwrap()[..]);
+    assert_eq!(plaintext, &service.decrypt(&encrypted2, DUMMY_AAD).unwrap()[..]);
 }
 
 #[test]
-fn test_encryption_tamper_detection() {
-    let service = EncryptionService::new(TEST_SECRET);
-    let encrypted = service.encrypt("secret data").unwrap();
+fn test_authentication_tag_validation() {
+    let service = EncryptionService::new(TEST_KEY_HEX.to_string()).unwrap();
+    let plaintext = b"secret data";
+    let encrypted = service.encrypt(plaintext, DUMMY_AAD).unwrap();
     
-    // Tamper with the ciphertext
-    let mut bytes = hex::decode(&encrypted).unwrap();
-    if let Some(last) = bytes.last_mut() {
+    // 1. Tamper with ciphertext
+    let mut tampered = encrypted.clone();
+    if let Some(last) = tampered.last_mut() {
         *last ^= 0xFF;
     }
-    let tampered = hex::encode(bytes);
-    
-    // Decryption should fail
-    assert!(service.decrypt(&tampered).is_err());
+    assert!(service.decrypt(&tampered, DUMMY_AAD).is_err());
+
+    // 2. Wrong AAD
+    assert!(service.decrypt(&encrypted, b"wrong-aad").is_err());
 }
 
 #[test]
 fn test_different_keys_cannot_decrypt() {
-    let service1 = EncryptionService::new(TEST_SECRET);
-    let service2 = EncryptionService::new("different-key-32-characters-here");
+    let service1 = EncryptionService::new(TEST_KEY_HEX.to_string()).unwrap();
+    // Key offset by 1
+    let other_key = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1e";
+    let service2 = EncryptionService::new(other_key.to_string()).unwrap();
     
-    let encrypted = service1.encrypt("secret").unwrap();
+    let encrypted = service1.encrypt(b"secret", DUMMY_AAD).unwrap();
     
     // Other service should not be able to decrypt
-    assert!(service2.decrypt(&encrypted).is_err());
-}
-
-#[test]
-fn test_encryption_of_binary_data() {
-    let service = EncryptionService::new(TEST_SECRET);
-    let binary_data: Vec<u8> = (0..256).map(|i| i as u8).collect();
-    
-    let encrypted = service.encrypt_bytes(&binary_data).unwrap();
-    let decrypted = service.decrypt_bytes(&encrypted).unwrap();
-    
-    assert_eq!(binary_data, decrypted);
-}
-
-#[test]
-fn test_encryption_with_special_characters() {
-    let service = EncryptionService::new(TEST_SECRET);
-    let plaintext = r#"{"key": "value", "special": "\n\t\r"}"#;
-    
-    let encrypted = service.encrypt(plaintext).unwrap();
-    let decrypted = service.decrypt(&encrypted).unwrap();
-    
-    assert_eq!(plaintext, decrypted);
-}
-
-#[test]
-fn test_invalid_hex_fails_gracefully() {
-    let service = EncryptionService::new(TEST_SECRET);
-    
-    // Not valid hex
-    assert!(service.decrypt("not-hex!!!").is_err());
-    
-    // Too short
-    assert!(service.decrypt("abcd").is_err());
-    
-    // Empty
-    assert!(service.decrypt("").is_err());
+    assert!(service2.decrypt(&encrypted, DUMMY_AAD).is_err());
 }

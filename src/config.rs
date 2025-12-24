@@ -95,13 +95,13 @@ impl Config {
         let log_level = env::var("LOG_LEVEL")
             .unwrap_or_else(|_| "info".to_string());
 
-        let encryption_key = env::var("ENCRYPTION_KEY")
-            .map_err(|_| ConfigError::MissingEnvVar("ENCRYPTION_KEY".to_string()))?;
+        let encryption_key = env::var("AGENTKEY_MASTER_KEY")
+            .map_err(|_| ConfigError::MissingEnvVar("AGENTKEY_MASTER_KEY".to_string()))?;
 
         // Validate encryption key length
         if encryption_key.len() < 32 {
             return Err(ConfigError::InvalidValue {
-                key: "ENCRYPTION_KEY".to_string(),
+                key: "AGENTKEY_MASTER_KEY".to_string(),
                 message: "Must be at least 32 characters".to_string(),
             });
         }
