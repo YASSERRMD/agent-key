@@ -4,6 +4,7 @@
 
 pub mod auth;
 pub mod health;
+pub mod agents;
 
 use actix_web::web;
 
@@ -25,9 +26,14 @@ pub fn configure_routes(cfg: &mut web::ServiceConfig) {
                     .service(health::readiness)
                     .service(health::detailed)
             )
+            .service(
+                web::scope("/agents")
+                    .configure(agents::configure)
+            )
     );
 
     // Auth endpoints
     auth::configure(cfg);
 }
+
 
