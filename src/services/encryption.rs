@@ -161,8 +161,8 @@ impl EncryptionService {
         // Decode from hex
         let decoded = hex::decode(encrypted)?;
 
-        // Validate minimum length (nonce + at least 1 byte + auth tag)
-        if decoded.len() < NONCE_SIZE + 17 {
+        // Validate minimum length (nonce + auth tag of 16 bytes)
+        if decoded.len() < NONCE_SIZE + 16 {
             return Err(EncryptionError::InvalidCiphertext);
         }
 
@@ -219,7 +219,7 @@ impl EncryptionService {
 
         let decoded = hex::decode(encrypted)?;
 
-        if decoded.len() < NONCE_SIZE + 17 {
+        if decoded.len() < NONCE_SIZE + 16 {
             return Err(EncryptionError::InvalidCiphertext);
         }
 
