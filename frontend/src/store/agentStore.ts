@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Agent } from '../types';
+import type { Agent, CreateAgentResponse } from '../types';
 import { agentService } from '../services/agentService';
 
 interface AgentState {
@@ -11,7 +11,7 @@ interface AgentState {
 
     fetchAgents: (page?: number, limit?: number) => Promise<void>;
     fetchAgent: (id: string) => Promise<void>;
-    createAgent: (data: any) => Promise<Agent>;
+    createAgent: (data: any) => Promise<CreateAgentResponse>;
     updateAgent: (id: string, data: any) => Promise<void>;
     deleteAgent: (id: string) => Promise<void>;
 }
@@ -56,13 +56,13 @@ export const useAgentStore = create<AgentState>((set) => ({
     createAgent: async (data: any) => {
         set({ isLoading: true, error: null });
         try {
-            const newAgent = await agentService.createAgent(data);
+            const response = await agentService.createAgent(data);
             set((state) => ({
-                agents: [newAgent, ...state.agents],
+                agents: [response.agent, ...state.agents],
                 totalAgents: state.totalAgents + 1,
                 isLoading: false
             }));
-            return newAgent;
+            return response;
         } catch (error: any) {
             set({
                 error: error.response?.data?.message || 'Failed to create agent',

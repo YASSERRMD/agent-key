@@ -97,6 +97,12 @@ export interface CreateAgentData {
     description?: string;
 }
 
+export interface CreateAgentResponse {
+    agent: Agent;
+    api_key: string;
+    warning: string;
+}
+
 export interface UpdateAgentData {
     description?: string;
     status?: 'active' | 'inactive';

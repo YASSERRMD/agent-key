@@ -1,13 +1,11 @@
 import api from './api';
-import type { Agent, CreateAgentData, UpdateAgentData, PaginatedResponse } from '../types';
+import type { Agent, CreateAgentData, UpdateAgentData, PaginatedResponse, CreateAgentResponse } from '../types';
 
 export const agentService = {
     async getAgents(page: number = 1, limit: number = 20): Promise<PaginatedResponse<Agent>> {
         const response = await api.get('/api/v1/agents', {
             params: { page, limit },
         });
-        // The backend might return { data: Agent[], total, ... } or { data: { data: Agent[], ... } }
-        // standardizing to match PaginatedResponse<Agent>
         return response.data;
     },
 
@@ -16,7 +14,7 @@ export const agentService = {
         return response.data;
     },
 
-    async createAgent(data: CreateAgentData): Promise<Agent> {
+    async createAgent(data: CreateAgentData): Promise<CreateAgentResponse> {
         const response = await api.post('/api/v1/agents', data);
         return response.data;
     },
