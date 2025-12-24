@@ -273,6 +273,122 @@ impl JwtService {
 
         Ok(token_data.claims)
     }
+
+    /// Create a refresh token for a user.
+    ///
+    /// Refresh tokens have a longer expiry (default 7 days) and are used
+    /// to obtain new access tokens without re-authentication.
+    ///
+    /// # Arguments
+    ///
+    /// * `user_id` - User's unique identifier
+    /// * `team_id` - Team's unique identifier
+    /// * `role` - User's role
+    /// * `days` - Token expiry in days (default 7)
+    pub fn create_refresh_token(
+        &self,
+        user_id: Uuid,
+        team_id: Uuid,
+        role: String,
+        days: i64,
+    ) -> Result<String, JwtError> {
+        let now = Utc::now();
+        let expiration = now + Duration::days(days);
+
+        let claims = RefreshClaims {
+            sub: user_id.to_string(),
+            team_id: team_id.to_string(),
+            role,
+            exp: expiration.timestamp(),
+            iat: now.timestamp(),
+            nbf: now.timestamp(),
+            iss: self.issuer.clone(),
+            token_type: "refresh".to_string(),
+        };
+
+        encode(
+            &Header::default(),
+            &claims,
+            &EncodingKey::from_secret(self.secret.as_bytes()),
+        )
+        .map_err(|e| JwtError::CreationFailed(e.to_string()))
+    }
+
+    /// Verify and decode a refresh token.
+    ///
+    /// Ensures the token is valid and has token_type == "refresh".
+    pub fn verify_refresh_token(&self, token: &str) -> Result<RefreshClaims, JwtError> {
+        let mut validation = Validation::default();
+        validation.set_issuer(&[&self.issuer]);
+
+        let token_data = decode::<RefreshClaims>(
+            token,
+            &DecodingKey::from_secret(self.secret.as_bytes()),
+            &validation,
+        )?;
+
+        // Ensure it's a refresh token
+        if token_data.claims.token_type != "refresh" {
+            return Err(JwtError::InvalidToken("Not a refresh token".to_string()));
+        }
+
+        Ok(token_data.claims)
+    }
+
+    /// Get the expiration timestamp from a token.
+    pub fn get_expiration_unix(&self, token: &str) -> Result<i64, JwtError> {
+        let claims = self.decode_without_validation(token)?;
+        Ok(claims.exp)
+    }
+
+    /// Check if a token is expiring soon (within 5 minutes).
+    ///
+    /// Useful for clients to know when to refresh their token.
+    pub fn is_token_expiring_soon(&self, token: &str) -> Result<bool, JwtError> {
+        let claims = self.decode_without_validation(token)?;
+        let five_minutes_from_now = Utc::now().timestamp() + 300;
+        Ok(claims.exp < five_minutes_from_now)
+    }
+}
+
+/// Refresh token claims.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RefreshClaims {
+    /// Subject (user ID)
+    pub sub: String,
+
+    /// Team ID
+    pub team_id: String,
+
+    /// User role
+    pub role: String,
+
+    /// Expiration time (Unix timestamp)
+    pub exp: i64,
+
+    /// Issued at time (Unix timestamp)
+    pub iat: i64,
+
+    /// Not valid before (Unix timestamp)
+    pub nbf: i64,
+
+    /// Token issuer
+    pub iss: String,
+
+    /// Token type (always "refresh" for refresh tokens)
+    pub token_type: String,
+}
+
+impl RefreshClaims {
+    /// Get the user ID as a UUID.
+    pub fn user_id(&self) -> Result<Uuid, uuid::Error> {
+        Uuid::parse_str(&self.sub)
+    }
+
+    /// Get the team ID as a UUID.
+    pub fn get_team_id(&self) -> Result<Uuid, uuid::Error> {
+        Uuid::parse_str(&self.team_id)
+    }
 }
 
 #[cfg(test)]
@@ -402,4 +518,85 @@ mod tests {
         let claims = service.decode_without_validation(&token).unwrap();
         assert_eq!(claims.sub, user_id.to_string());
     }
+
+    #[test]
+    fn test_create_and_verify_refresh_token() {
+        let service = create_test_service();
+        let user_id = Uuid::new_v4();
+        let team_id = Uuid::new_v4();
+
+        let refresh_token = service
+            .create_refresh_token(user_id, team_id, "admin".to_string(), 7)
+            .expect("Refresh token creation should succeed");
+
+        let claims = service
+            .verify_refresh_token(&refresh_token)
+            .expect("Refresh token verification should succeed");
+
+        assert_eq!(claims.sub, user_id.to_string());
+        assert_eq!(claims.team_id, team_id.to_string());
+        assert_eq!(claims.token_type, "refresh");
+    }
+
+    #[test]
+    fn test_refresh_token_different_from_access_token() {
+        let service = create_test_service();
+        let user_id = Uuid::new_v4();
+        let team_id = Uuid::new_v4();
+
+        let access_token = service
+            .create_token(user_id, team_id, "admin".to_string())
+            .unwrap();
+        let refresh_token = service
+            .create_refresh_token(user_id, team_id, "admin".to_string(), 7)
+            .unwrap();
+
+        assert_ne!(access_token, refresh_token);
+    }
+
+    #[test]
+    fn test_access_token_fails_refresh_validation() {
+        let service = create_test_service();
+        let access_token = service
+            .create_token(Uuid::new_v4(), Uuid::new_v4(), "admin".to_string())
+            .unwrap();
+
+        // Access token should fail refresh token validation (missing token_type)
+        let result = service.verify_refresh_token(&access_token);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_get_expiration_unix() {
+        let service = create_test_service();
+        let token = service
+            .create_token(Uuid::new_v4(), Uuid::new_v4(), "admin".to_string())
+            .unwrap();
+
+        let exp = service.get_expiration_unix(&token).unwrap();
+        let now = Utc::now().timestamp();
+        
+        // Expiration should be ~24 hours from now
+        assert!(exp > now);
+        assert!(exp < now + 24 * 3600 + 60); // within 24h + 1min buffer
+    }
+
+    #[test]
+    fn test_is_token_expiring_soon() {
+        let service = create_test_service();
+        
+        // Token with 24 hours expiry should not be expiring soon
+        let long_token = service
+            .create_token(Uuid::new_v4(), Uuid::new_v4(), "admin".to_string())
+            .unwrap();
+        assert!(!service.is_token_expiring_soon(&long_token).unwrap());
+
+        // Token with 1 minute expiry should be expiring soon
+        let short_service = JwtService::new(TEST_SECRET.to_string(), 0);
+        let short_token = short_service
+            .create_token_with_expiry(Uuid::new_v4(), Uuid::new_v4(), "admin".to_string(), 0)
+            .unwrap();
+        assert!(short_service.is_token_expiring_soon(&short_token).unwrap());
+    }
 }
+
