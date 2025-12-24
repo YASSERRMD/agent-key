@@ -2,14 +2,16 @@
 //!
 //! Handles CRUD operations for agents, including key generation and quota checks.
 
+use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::errors::ApiError;
 use crate::models::{
-    log_audit_event, Agent, AgentResponse, CreateAgentRequest, CreateAgentResponse,
-    PaginatedResponse, QuotaUsage, UpdateAgentRequest,
+    log_audit_event, Agent, AgentApiKey, AgentResponse, ApiKeyResponse, CreateAgentRequest,
+    CreateAgentResponse, CreateApiKeyRequest, CreateApiKeyResponse, PaginatedResponse, QuotaUsage,
+    UpdateAgentRequest,
 };
 
 use crate::services::jwt::JwtService;
@@ -234,6 +236,47 @@ impl AgentService {
         QuotaService::get_quota_usage(pool, agent_id).await
     }
     
+    /// List API keys for an agent.
+    pub async fn list_agent_keys(
+        &self,
+        pool: &PgPool,
+        team_id: Uuid,
+        agent_id: Uuid,
+    ) -> Result<Vec<ApiKeyResponse>, ApiError> {
+        // Verify ownership
+        self.get_agent(pool, team_id, agent_id).await?;
+        
+        AgentApiKey::find_by_agent(pool, agent_id).await
+    }
+
+    /// Create a new API key for an agent.
+    pub async fn create_agent_key(
+        &self,
+        pool: &PgPool,
+        team_id: Uuid,
+        agent_id: Uuid,
+        request: CreateApiKeyRequest,
+    ) -> Result<CreateApiKeyResponse, ApiError> {
+        // Verify ownership
+        self.get_agent(pool, team_id, agent_id).await?;
+        
+        AgentApiKey::create_for_agent(pool, agent_id, request.expires_at).await
+    }
+
+    /// Revoke an API key.
+    pub async fn revoke_agent_key(
+        &self,
+        pool: &PgPool,
+        team_id: Uuid,
+        agent_id: Uuid,
+        key_id: Uuid,
+    ) -> Result<(), ApiError> {
+        // Verify ownership of agent
+        self.get_agent(pool, team_id, agent_id).await?;
+        
+        AgentApiKey::revoke(pool, key_id, agent_id).await
+    }
+
     /// Verify API key and return (agent_id, team_id).
     pub async fn verify_api_key(
         &self,

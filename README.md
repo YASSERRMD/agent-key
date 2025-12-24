@@ -10,6 +10,8 @@ A production-ready Rust backend for secure credential management for AI agents.
 - 🎫 **JWT Authentication** - Secure token-based authentication
 - 🐘 **PostgreSQL** - Reliable database with comprehensive schema
 - ⚡ **Redis** - Fast caching layer
+- 🐍 **Python SDK** - Native client for easy agent integration
+- 🔑 **Ephemeral Tokens** - Short-lived, secure access for agents
 - 🦀 **Actix-web** - High-performance async web framework
 - ✅ **Comprehensive Tests** - 49+ tests covering all services
 

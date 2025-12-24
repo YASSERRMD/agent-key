@@ -62,6 +62,43 @@ pub struct Agent {
     pub deleted_at: Option<DateTime<Utc>>,
 }
 
+/// Agent API Key model.
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct AgentApiKey {
+    pub id: Uuid,
+    pub agent_id: Uuid,
+    pub api_key_hash: String,
+    pub status: String,
+    pub created_at: DateTime<Utc>,
+    pub expires_at: Option<DateTime<Utc>>,
+    pub revoked_at: Option<DateTime<Utc>>,
+}
+
+/// Response DTO for API key.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ApiKeyResponse {
+    pub id: Uuid,
+    pub agent_id: Uuid,
+    pub key_prefix: String,
+    pub status: String,
+    pub created_at: DateTime<Utc>,
+    pub expires_at: Option<DateTime<Utc>>,
+    pub last_used: Option<DateTime<Utc>>,
+}
+
+/// Request DTO for creating an API key.
+#[derive(Debug, Deserialize, Serialize, Validate)]
+pub struct CreateApiKeyRequest {
+    pub expires_at: Option<DateTime<Utc>>,
+}
+
+/// Response DTO for API key creation (includes raw key).
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateApiKeyResponse {
+    pub id: Uuid,
+    pub api_key: String,
+}
+
 /// Agent quota model.
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct AgentQuota {
@@ -90,6 +127,200 @@ pub struct AgentUsage {
     pub response_time_ms: Option<i32>,
     pub status_code: Option<i32>,
 }
+
+/// Credential model.
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct Credential {
+    pub id: Uuid,
+    pub agent_id: Uuid,
+    pub team_id: Uuid,
+    pub name: String,
+    pub credential_type: String,
+    pub description: Option<String>,
+    #[serde(skip)]
+    pub encrypted_value: Vec<u8>,
+    pub is_active: bool,
+    pub last_accessed: Option<DateTime<Utc>>,
+    pub rotation_enabled: bool,
+    pub rotation_interval_days: Option<i32>,
+    pub last_rotated: Option<DateTime<Utc>>,
+    pub next_rotation_due: Option<DateTime<Utc>>,
+    pub created_by: Uuid,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub deleted_at: Option<DateTime<Utc>>,
+}
+
+/// Credential version model.
+#[derive(Debug, Clone, FromRow)]
+pub struct CredentialVersion {
+    pub id: Uuid,
+    pub credential_id: Uuid,
+    pub version: i32,
+    pub encrypted_value: Vec<u8>,
+    pub status: String,
+    pub created_at: DateTime<Utc>,
+    pub expired_at: Option<DateTime<Utc>>,
+}
+
+/// Credential access log model.
+#[derive(Debug, Clone, FromRow)]
+pub struct CredentialAccessLog {
+    pub id: i64,
+    pub credential_id: Uuid,
+    pub agent_id: Uuid,
+    pub team_id: Uuid,
+    pub access_type: String,
+    pub status: String,
+    pub reason: Option<String>,
+    pub timestamp: DateTime<Utc>,
+}
+
+/// Ephemeral token model for short-lived credential access.
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct EphemeralToken {
+    pub id: Uuid,
+    pub jti: String,
+    pub agent_id: Uuid,
+    pub credential_id: Uuid,
+    pub team_id: Uuid,
+    pub token_signature: String,
+    pub status: String,
+    pub expires_at: DateTime<Utc>,
+    pub revoked_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// Token usage log for audit trail.
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct TokenUsageLog {
+    pub id: i64,
+    pub jti: String,
+    pub agent_id: Uuid,
+    pub team_id: Uuid,
+    pub action: String,
+    pub ip_address: Option<String>,
+    pub timestamp: DateTime<Utc>,
+}
+
+/// SDK session tracking.
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct SdkSession {
+    pub id: Uuid,
+    pub agent_id: Uuid,
+    pub sdk_version: String,
+    pub user_agent: Option<String>,
+    pub last_activity: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+}
+
+impl EphemeralToken {
+    /// Create a new ephemeral token record.
+    pub async fn create(
+        pool: &PgPool,
+        jti: &str,
+        agent_id: Uuid,
+        credential_id: Uuid,
+        team_id: Uuid,
+        token_signature: &str,
+        expires_at: DateTime<Utc>,
+    ) -> Result<Self, ApiError> {
+        let token = sqlx::query_as::<_, EphemeralToken>(
+            r#"
+            INSERT INTO ephemeral_tokens (jti, agent_id, credential_id, team_id, token_signature, expires_at)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING *
+            "#
+        )
+        .bind(jti)
+        .bind(agent_id)
+        .bind(credential_id)
+        .bind(team_id)
+        .bind(token_signature)
+        .bind(expires_at)
+        .fetch_one(pool)
+        .await
+        .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+
+        Ok(token)
+    }
+
+    /// Find token by JTI.
+    pub async fn find_by_jti(pool: &PgPool, jti: &str) -> Result<Option<Self>, ApiError> {
+        let result = sqlx::query_as::<_, EphemeralToken>(
+            "SELECT * FROM ephemeral_tokens WHERE jti = $1"
+        )
+        .bind(jti)
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+
+        Ok(result)
+    }
+
+    /// Revoke a token.
+    pub async fn revoke(pool: &PgPool, jti: &str) -> Result<(), ApiError> {
+        sqlx::query(
+            r#"
+            UPDATE ephemeral_tokens 
+            SET status = 'revoked', revoked_at = CURRENT_TIMESTAMP
+            WHERE jti = $1
+            "#
+        )
+        .bind(jti)
+        .execute(pool)
+        .await
+        .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+
+        Ok(())
+    }
+
+    /// Mark expired tokens.
+    pub async fn cleanup_expired(pool: &PgPool) -> Result<i64, ApiError> {
+        let result = sqlx::query(
+            r#"
+            UPDATE ephemeral_tokens 
+            SET status = 'expired'
+            WHERE status = 'active' AND expires_at < CURRENT_TIMESTAMP
+            "#
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+
+        Ok(result.rows_affected() as i64)
+    }
+}
+
+impl TokenUsageLog {
+    /// Log a token action.
+    pub async fn log_action(
+        pool: &PgPool,
+        jti: &str,
+        agent_id: Uuid,
+        team_id: Uuid,
+        action: &str,
+        ip_address: Option<&str>,
+    ) -> Result<(), ApiError> {
+        sqlx::query(
+            r#"
+            INSERT INTO token_usage_log (jti, agent_id, team_id, action, ip_address)
+            VALUES ($1, $2, $3, $4, $5::inet)
+            "#
+        )
+        .bind(jti)
+        .bind(agent_id)
+        .bind(team_id)
+        .bind(action)
+        .bind(ip_address)
+        .execute(pool)
+        .await
+        .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+
+        Ok(())
+    }
+}
+
 
 // =============================================================================
 // REQUEST/RESPONSE DTOs
@@ -241,6 +472,83 @@ pub struct QuotaMetric {
     pub limit: i32,
     pub percentage: f32,
 }
+
+/// Request DTO for creating a credential.
+#[derive(Debug, Deserialize, Serialize, Validate)]
+pub struct CreateCredentialRequest {
+    #[validate(length(min = 1, max = 255, message = "Name must be 1-255 characters"))]
+    #[validate(regex(path = "REGEX_ALPHANUM_UNDERSCORE", message = "Name must contain only alphanumeric characters and underscores"))]
+    pub name: String,
+    
+    pub credential_type: String,
+    pub description: Option<String>,
+    
+    #[validate(length(min = 1, message = "Secret cannot be empty"))]
+    pub secret: String,
+    
+    pub rotation_enabled: Option<bool>,
+    pub rotation_interval_days: Option<i32>,
+}
+
+lazy_static::lazy_static! {
+    static ref REGEX_ALPHANUM_UNDERSCORE: regex::Regex = regex::Regex::new(r"^[a-zA-Z0-9_]+$").unwrap();
+}
+
+/// Response DTO for credential (metadata only).
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CredentialResponse {
+    pub id: Uuid,
+    pub agent_id: Uuid,
+    pub name: String,
+    pub credential_type: String,
+    pub description: Option<String>,
+    pub is_active: bool,
+    pub last_accessed: Option<DateTime<Utc>>,
+    pub rotation_enabled: bool,
+    pub rotation_interval_days: Option<i32>,
+    pub last_rotated: Option<DateTime<Utc>>,
+    pub next_rotation_due: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// Response DTO for decrypted credential.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DecryptedCredentialResponse {
+    pub id: Uuid,
+    pub agent_id: Uuid,
+    pub name: String,
+    pub credential_type: String,
+    pub description: Option<String>,
+    pub secret: String,
+    pub is_active: bool,
+    pub created_at: DateTime<Utc>,
+}
+
+/// Request DTO for updating a credential.
+#[derive(Debug, Deserialize, Validate)]
+pub struct UpdateCredentialRequest {
+    pub description: Option<String>,
+    pub rotation_enabled: Option<bool>,
+    pub rotation_interval_days: Option<i32>,
+    pub secret: Option<String>,
+}
+
+/// Request DTO for rotating a credential.
+#[derive(Debug, Deserialize, Validate)]
+pub struct RotateCredentialRequest {
+    #[validate(length(min = 1, message = "New secret cannot be empty"))]
+    pub new_secret: String,
+}
+
+/// Summary of credential version.
+#[derive(Debug, Serialize, FromRow)]
+pub struct VersionSummary {
+    pub id: Uuid,
+    pub version: i32,
+    pub status: String,
+    pub created_at: DateTime<Utc>,
+}
+
 
 // =============================================================================
 // TEAM DATABASE METHODS
@@ -833,7 +1141,413 @@ impl Agent {
     }
 }
 
+impl AgentApiKey {
+    /// Find all API keys for an agent.
+    pub async fn find_by_agent(pool: &PgPool, agent_id: Uuid) -> Result<Vec<ApiKeyResponse>, ApiError> {
+        let keys = sqlx::query!(
+            r#"
+            SELECT 
+                k.id, 
+                k.agent_id, 
+                k.api_key_hash, 
+                k.status, 
+                k.created_at, 
+                k.expires_at,
+                a.last_used
+            FROM agent_api_keys k
+            JOIN agents a ON k.agent_id = a.id
+            WHERE k.agent_id = $1 AND k.revoked_at IS NULL
+            ORDER BY k.created_at DESC
+            "#,
+            agent_id
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+
+        Ok(keys.into_iter().map(|k| ApiKeyResponse {
+            id: k.id,
+            agent_id: k.agent_id,
+            key_prefix: format!("{}...", &k.api_key_hash[..8]), // Placeholder prefix
+            status: k.status.unwrap_or_else(|| "active".to_string()),
+            created_at: k.created_at.unwrap_or_else(|| Utc::now()),
+            expires_at: k.expires_at,
+            last_used: k.last_used,
+        }).collect())
+    }
+
+    /// Create a new API key for an agent.
+    pub async fn create_for_agent(
+        pool: &PgPool,
+        agent_id: Uuid,
+        expires_at: Option<DateTime<Utc>>,
+    ) -> Result<CreateApiKeyResponse, ApiError> {
+        let api_key = ApiKeyGenerator::generate();
+        let api_key_hash = ApiKeyGenerator::hash(&api_key);
+
+        let id = sqlx::query!(
+            r#"
+            INSERT INTO agent_api_keys (agent_id, api_key_hash, expires_at)
+            VALUES ($1, $2, $3)
+            RETURNING id
+            "#,
+            agent_id,
+            api_key_hash,
+            expires_at
+        )
+        .fetch_one(pool)
+        .await
+        .map_err(|e| ApiError::DatabaseError(e.to_string()))?
+        .id;
+
+        Ok(CreateApiKeyResponse { id, api_key })
+    }
+
+    /// Revoke an API key.
+    pub async fn revoke(pool: &PgPool, id: Uuid, agent_id: Uuid) -> Result<(), ApiError> {
+        let result = sqlx::query!(
+            r#"
+            UPDATE agent_api_keys
+            SET status = 'revoked', revoked_at = CURRENT_TIMESTAMP
+            WHERE id = $1 AND agent_id = $2
+            "#,
+            id,
+            agent_id
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+
+        if result.rows_affected() == 0 {
+            return Err(ApiError::NotFound("API key not found for this agent".to_string()));
+        }
+
+        Ok(())
+    }
+}
+
+
 // =============================================================================
+// CREDENTIAL DATABASE METHODS
+// =============================================================================
+
+impl Credential {
+    /// Create a new credential.
+    pub async fn create(
+        pool: &PgPool,
+        id: Uuid,
+        agent_id: Uuid,
+        team_id: Uuid,
+        name: &str,
+        credential_type: &str,
+        description: Option<String>,
+        encrypted_value: Vec<u8>,
+        created_by: Uuid,
+        rotation_enabled: bool,
+        rotation_interval_days: Option<i32>,
+    ) -> Result<Credential, ApiError> {
+        let mut tx = pool.begin().await.map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+
+        // Insert credential
+        let credential = sqlx::query_as::<_, Credential>(
+            r#"
+            INSERT INTO credentials (
+                id, agent_id, team_id, name, credential_type, description, 
+                encrypted_value, created_by, rotation_enabled, rotation_interval_days,
+                next_rotation_due
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+                CASE WHEN $9 THEN CURRENT_TIMESTAMP + ($10 || ' days')::INTERVAL ELSE NULL END
+            )
+            RETURNING *
+            "#,
+        )
+        .bind(id)
+        .bind(agent_id)
+        .bind(team_id)
+        .bind(name)
+        .bind(credential_type)
+        .bind(description)
+        .bind(&encrypted_value)
+        .bind(created_by)
+        .bind(rotation_enabled)
+        .bind(rotation_interval_days)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|e| {
+            if e.to_string().contains("duplicate key") || e.to_string().contains("unique") {
+                ApiError::Conflict("Credential name already exists for this agent".to_string())
+            } else {
+                ApiError::DatabaseError(e.to_string())
+            }
+        })?;
+
+        // Insert initial version
+        sqlx::query(
+            r#"
+            INSERT INTO credential_versions (credential_id, version, encrypted_value, status)
+            VALUES ($1, 1, $2, 'active')
+            "#,
+        )
+        .bind(credential.id)
+        .bind(&encrypted_value)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+
+        tx.commit().await.map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+
+        Ok(credential)
+    }
+
+    /// Find a credential by ID.
+    pub async fn find_by_id(pool: &PgPool, id: Uuid) -> Result<Option<Credential>, ApiError> {
+        let credential = sqlx::query_as::<_, Credential>(
+            r#"
+            SELECT * FROM credentials 
+            WHERE id = $1 AND deleted_at IS NULL
+            "#,
+        )
+        .bind(id)
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+
+        Ok(credential)
+    }
+
+    /// Find credentials by agent (paginated).
+    pub async fn find_by_agent(
+        pool: &PgPool,
+        agent_id: Uuid,
+        page: i32,
+        limit: i32,
+    ) -> Result<(Vec<Credential>, i64), ApiError> {
+        let offset = (page - 1) * limit;
+
+        let credentials = sqlx::query_as::<_, Credential>(
+            r#"
+            SELECT * FROM credentials 
+            WHERE agent_id = $1 AND deleted_at IS NULL
+            ORDER BY created_at DESC
+            LIMIT $2 OFFSET $3
+            "#,
+        )
+        .bind(agent_id)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(pool)
+        .await
+        .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+
+        let count: (i64,) = sqlx::query_as(
+            r#"
+            SELECT COUNT(*) FROM credentials 
+            WHERE agent_id = $1 AND deleted_at IS NULL
+            "#,
+        )
+        .bind(agent_id)
+        .fetch_one(pool)
+        .await
+        .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+
+        Ok((credentials, count.0))
+    }
+
+    /// Find a credential by name.
+    pub async fn find_by_name(
+        pool: &PgPool,
+        agent_id: Uuid,
+        name: &str,
+    ) -> Result<Option<Credential>, ApiError> {
+        let credential = sqlx::query_as::<_, Credential>(
+            r#"
+            SELECT * FROM credentials 
+            WHERE agent_id = $1 AND name = $2 AND deleted_at IS NULL
+            "#,
+        )
+        .bind(agent_id)
+        .bind(name)
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+
+        Ok(credential)
+    }
+
+    /// Update credential details.
+    pub async fn update(
+        pool: &PgPool,
+        id: Uuid,
+        description: Option<String>,
+        rotation_enabled: Option<bool>,
+        rotation_interval_days: Option<i32>,
+    ) -> Result<Credential, ApiError> {
+        let mut query = "UPDATE credentials SET updated_at = CURRENT_TIMESTAMP".to_string();
+        let mut params_count = 1; // start after id ($1)
+        
+        // Dynamic query building
+        if description.is_some() {
+            params_count += 1;
+            query.push_str(&format!(", description = ${}", params_count));
+        }
+        if rotation_enabled.is_some() {
+            params_count += 1;
+            query.push_str(&format!(", rotation_enabled = ${}", params_count));
+        }
+        if rotation_interval_days.is_some() {
+            params_count += 1;
+            query.push_str(&format!(", rotation_interval_days = ${}", params_count));
+            
+            // Also update next_rotation_due if enabling
+             query.push_str(&format!(", next_rotation_due = CASE WHEN ${} THEN CURRENT_TIMESTAMP + (${} || ' days')::INTERVAL ELSE NULL END", params_count - 1, params_count));
+        } else if let Some(enabled) = rotation_enabled {
+             // If toggling rotation but keeping interval same, need to update due date logic
+             // This is simplified; proper logic would check current interval from DB if not provided, 
+             // but here we might just null it if disabled
+             if !enabled {
+                 query.push_str(", next_rotation_due = NULL");
+             }
+        }
+
+        query.push_str(" WHERE id = $1 AND deleted_at IS NULL RETURNING *");
+
+        let mut q = sqlx::query_as::<_, Credential>(&query).bind(id);
+
+        if let Some(d) = description {
+            q = q.bind(d);
+        }
+        if let Some(r) = rotation_enabled {
+            q = q.bind(r);
+        }
+        if let Some(i) = rotation_interval_days {
+            q = q.bind(i);
+        }
+
+        let credential = q
+            .fetch_one(pool)
+            .await
+            .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+
+        Ok(credential)
+    }
+
+    /// Rotate credential (update secret).
+    pub async fn rotate(
+        pool: &PgPool,
+        id: Uuid,
+        encrypted_value: Vec<u8>,
+    ) -> Result<Credential, ApiError> {
+        let mut tx = pool.begin().await.map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+
+        // Get current version count
+        let count: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM credential_versions WHERE credential_id = $1"
+        )
+        .bind(id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+
+        let new_version = count.0 as i32 + 1;
+
+        // Archive current version (optional, or just mark superseded)
+        sqlx::query(
+            "UPDATE credential_versions SET status = 'superseded', expired_at = CURRENT_TIMESTAMP WHERE credential_id = $1 AND status = 'active'"
+        )
+        .bind(id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+
+        // Insert new version
+        sqlx::query(
+            r#"
+            INSERT INTO credential_versions (credential_id, version, encrypted_value, status)
+            VALUES ($1, $2, $3, 'active')
+            "#,
+        )
+        .bind(id)
+        .bind(new_version)
+        .bind(&encrypted_value)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+
+        // Update credential
+        let credential = sqlx::query_as::<_, Credential>(
+            r#"
+            UPDATE credentials 
+            SET encrypted_value = $2, 
+                last_rotated = CURRENT_TIMESTAMP, 
+                updated_at = CURRENT_TIMESTAMP,
+                next_rotation_due = CASE WHEN rotation_enabled THEN CURRENT_TIMESTAMP + (rotation_interval_days || ' days')::INTERVAL ELSE NULL END
+            WHERE id = $1
+            RETURNING *
+            "#,
+        )
+        .bind(id)
+        .bind(&encrypted_value)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+
+        tx.commit().await.map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+
+        Ok(credential)
+    }
+
+    /// Soft delete credential.
+    pub async fn soft_delete(pool: &PgPool, id: Uuid) -> Result<(), ApiError> {
+        sqlx::query(
+            r#"
+            UPDATE credentials 
+            SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+            WHERE id = $1
+            "#,
+        )
+        .bind(id)
+        .execute(pool)
+        .await
+        .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+
+        Ok(())
+    }
+
+    /// Update last accessed timestamp.
+    pub async fn update_last_accessed(pool: &PgPool, id: Uuid) -> Result<(), ApiError> {
+        sqlx::query(
+            "UPDATE credentials SET last_accessed = CURRENT_TIMESTAMP WHERE id = $1"
+        )
+        .bind(id)
+        .execute(pool)
+        .await
+        .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+
+        Ok(())
+    }
+
+    /// Convert to response DTO.
+    pub fn to_response(&self) -> CredentialResponse {
+        CredentialResponse {
+            id: self.id,
+            agent_id: self.agent_id,
+            name: self.name.clone(),
+            credential_type: self.credential_type.clone(),
+            description: self.description.clone(),
+            is_active: self.is_active,
+            last_accessed: self.last_accessed,
+            rotation_enabled: self.rotation_enabled,
+            rotation_interval_days: self.rotation_interval_days,
+            last_rotated: self.last_rotated,
+            next_rotation_due: self.next_rotation_due,
+            created_at: self.created_at,
+        }
+    }
+}
+
+// =============================================================================
+
 // AUDIT EVENT LOGGING
 // =============================================================================
 
