@@ -7,7 +7,9 @@ use uuid::Uuid;
 use crate::errors::ApiError;
 use crate::middleware::api_key::ApiKeyAuth;
 use crate::middleware::auth::AuthUser;
-use crate::models::{CreateAgentRequest, PaginationQuery, UpdateAgentRequest};
+use crate::models::{
+    CreateAgentRequest, CreateApiKeyRequest, PaginationQuery, UpdateAgentRequest,
+};
 use crate::services::agent::AgentService;
 
 /// Configure agent routes.
@@ -19,6 +21,9 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(delete_agent);
     cfg.service(get_agent_usage);
     cfg.service(check_agent_status);
+    cfg.service(list_agent_keys);
+    cfg.service(create_agent_key);
+    cfg.service(revoke_agent_key);
 }
 
 /// Create a new agent.
@@ -126,4 +131,48 @@ async fn check_agent_status(
         "agent_id": agent_id,
         "team_id": auth.team_id
     })))
+}
+
+/// List API keys for an agent.
+#[get("/{id}/keys")]
+async fn list_agent_keys(
+    auth: AuthUser,
+    pool: web::Data<PgPool>,
+    service: web::Data<AgentService>,
+    path: web::Path<Uuid>,
+) -> Result<HttpResponse, ApiError> {
+    let response = service
+        .list_agent_keys(&pool, auth.team_id, path.into_inner())
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+/// Create a new API key for an agent.
+#[post("/{id}/keys")]
+async fn create_agent_key(
+    auth: AuthUser,
+    pool: web::Data<PgPool>,
+    service: web::Data<AgentService>,
+    path: web::Path<Uuid>,
+    request: web::Json<CreateApiKeyRequest>,
+) -> Result<HttpResponse, ApiError> {
+    let response = service
+        .create_agent_key(&pool, auth.team_id, path.into_inner(), request.into_inner())
+        .await?;
+    Ok(HttpResponse::Created().json(response))
+}
+
+/// Revoke an API key.
+#[delete("/{id}/keys/{key_id}")]
+async fn revoke_agent_key(
+    auth: AuthUser,
+    pool: web::Data<PgPool>,
+    service: web::Data<AgentService>,
+    path: web::Path<(Uuid, Uuid)>,
+) -> Result<HttpResponse, ApiError> {
+    let (agent_id, key_id) = path.into_inner();
+    service
+        .revoke_agent_key(&pool, auth.team_id, agent_id, key_id)
+        .await?;
+    Ok(HttpResponse::NoContent().finish())
 }

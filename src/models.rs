@@ -62,6 +62,43 @@ pub struct Agent {
     pub deleted_at: Option<DateTime<Utc>>,
 }
 
+/// Agent API Key model.
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct AgentApiKey {
+    pub id: Uuid,
+    pub agent_id: Uuid,
+    pub api_key_hash: String,
+    pub status: String,
+    pub created_at: DateTime<Utc>,
+    pub expires_at: Option<DateTime<Utc>>,
+    pub revoked_at: Option<DateTime<Utc>>,
+}
+
+/// Response DTO for API key.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ApiKeyResponse {
+    pub id: Uuid,
+    pub agent_id: Uuid,
+    pub key_prefix: String,
+    pub status: String,
+    pub created_at: DateTime<Utc>,
+    pub expires_at: Option<DateTime<Utc>>,
+    pub last_used: Option<DateTime<Utc>>,
+}
+
+/// Request DTO for creating an API key.
+#[derive(Debug, Deserialize, Serialize, Validate)]
+pub struct CreateApiKeyRequest {
+    pub expires_at: Option<DateTime<Utc>>,
+}
+
+/// Response DTO for API key creation (includes raw key).
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateApiKeyResponse {
+    pub id: Uuid,
+    pub api_key: String,
+}
+
 /// Agent quota model.
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct AgentQuota {
@@ -1101,6 +1138,91 @@ impl Agent {
             usage_count: self.usage_count,
             created_at: self.created_at,
         }
+    }
+}
+
+impl AgentApiKey {
+    /// Find all API keys for an agent.
+    pub async fn find_by_agent(pool: &PgPool, agent_id: Uuid) -> Result<Vec<ApiKeyResponse>, ApiError> {
+        let keys = sqlx::query!(
+            r#"
+            SELECT 
+                k.id, 
+                k.agent_id, 
+                k.api_key_hash, 
+                k.status, 
+                k.created_at, 
+                k.expires_at,
+                a.last_used
+            FROM agent_api_keys k
+            JOIN agents a ON k.agent_id = a.id
+            WHERE k.agent_id = $1 AND k.revoked_at IS NULL
+            ORDER BY k.created_at DESC
+            "#,
+            agent_id
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+
+        Ok(keys.into_iter().map(|k| ApiKeyResponse {
+            id: k.id,
+            agent_id: k.agent_id,
+            key_prefix: format!("{}...", &k.api_key_hash[..8]), // Placeholder prefix
+            status: k.status.unwrap_or_else(|| "active".to_string()),
+            created_at: k.created_at.unwrap_or_else(|| Utc::now()),
+            expires_at: k.expires_at,
+            last_used: k.last_used,
+        }).collect())
+    }
+
+    /// Create a new API key for an agent.
+    pub async fn create_for_agent(
+        pool: &PgPool,
+        agent_id: Uuid,
+        expires_at: Option<DateTime<Utc>>,
+    ) -> Result<CreateApiKeyResponse, ApiError> {
+        let api_key = ApiKeyGenerator::generate();
+        let api_key_hash = ApiKeyGenerator::hash(&api_key);
+
+        let id = sqlx::query!(
+            r#"
+            INSERT INTO agent_api_keys (agent_id, api_key_hash, expires_at)
+            VALUES ($1, $2, $3)
+            RETURNING id
+            "#,
+            agent_id,
+            api_key_hash,
+            expires_at
+        )
+        .fetch_one(pool)
+        .await
+        .map_err(|e| ApiError::DatabaseError(e.to_string()))?
+        .id;
+
+        Ok(CreateApiKeyResponse { id, api_key })
+    }
+
+    /// Revoke an API key.
+    pub async fn revoke(pool: &PgPool, id: Uuid, agent_id: Uuid) -> Result<(), ApiError> {
+        let result = sqlx::query!(
+            r#"
+            UPDATE agent_api_keys
+            SET status = 'revoked', revoked_at = CURRENT_TIMESTAMP
+            WHERE id = $1 AND agent_id = $2
+            "#,
+            id,
+            agent_id
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+
+        if result.rows_affected() == 0 {
+            return Err(ApiError::NotFound("API key not found for this agent".to_string()));
+        }
+
+        Ok(())
     }
 }
 
