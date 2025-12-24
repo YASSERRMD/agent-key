@@ -10,4 +10,6 @@ pub mod middleware;
 pub mod models;
 pub mod server;
 pub mod services;
+pub mod utils;
+
 
