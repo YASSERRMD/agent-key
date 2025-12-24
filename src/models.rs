@@ -156,7 +156,7 @@ pub struct UserProfile {
 }
 
 /// Request DTO for creating an agent.
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct CreateAgentRequest {
     #[validate(length(min = 3, max = 255, message = "Name must be 3-255 characters"))]
     #[validate(regex(path = "REGEX_ALPHANUM_HYPHEN", message = "Name must contain only alphanumeric characters and hyphens"))]
@@ -170,7 +170,7 @@ lazy_static::lazy_static! {
 }
 
 /// Response DTO for agent creation (includes API key).
-#[derive(Debug, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct CreateAgentResponse {
     pub agent: AgentResponse,
     pub api_key: String,
@@ -191,7 +191,7 @@ pub struct AgentResponse {
 }
 
 /// Request DTO for updating an agent.
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct UpdateAgentRequest {
     #[validate(length(min = 3, max = 255))]
     #[validate(regex(path = "REGEX_ALPHANUM_HYPHEN"))]
