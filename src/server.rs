@@ -31,6 +31,12 @@ pub struct AppState {
 /// # Errors
 ///
 /// Returns `std::io::Error` if the server fails to start.
+use std::sync::Arc;
+use crate::services::jwt::JwtService;
+use crate::services::agent::AgentService;
+
+// ...
+
 pub async fn run(
     addr: String,
     db: Database,
@@ -38,10 +44,19 @@ pub async fn run(
     config: Config,
 ) -> std::io::Result<()> {
     let state = web::Data::new(AppState {
-        db,
+        db: db.clone(),
         redis,
         config: config.clone(),
     });
+
+    // Initialize services
+    let jwt_service = Arc::new(JwtService::new(
+        config.jwt_secret.clone(),
+        config.jwt_expiry_hours,
+    ));
+
+    let agent_service = web::Data::new(AgentService::new(jwt_service.clone()));
+    let db_pool = web::Data::new(db.pool().clone());
 
     info!("Configuring HTTP server...");
 
@@ -55,6 +70,8 @@ pub async fn run(
 
         App::new()
             .app_data(state.clone())
+            .app_data(db_pool.clone())
+            .app_data(agent_service.clone())
             // Middleware
             .wrap(TracingLogger::default())
             .wrap(cors)
@@ -62,6 +79,7 @@ pub async fn run(
             .configure(handlers::configure_routes)
     })
     .bind(&addr)?
+    // ...
     .workers(num_cpus::get().max(2))
     .shutdown_timeout(30)
     .run()

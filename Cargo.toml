@@ -76,6 +76,7 @@ regex = "1.12.2"
 actix-rt = "2.9"
 tokio-test = "0.4"
 once_cell = "1.19"
+actix-http = "3.11.2"
 
 [[bin]]
 name = "agentkey_backend"
