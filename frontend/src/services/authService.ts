@@ -17,7 +17,7 @@ export const authService = {
         const response = await api.post('/api/v1/auth/register', {
             email: data.email,
             password: data.password,
-            name: data.name,
+            team_name: data.team_name,
         });
         return response.data;
     },

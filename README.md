@@ -1,5 +1,10 @@
 # AgentKey
 
+<p align="center">
+  <img src="frontend/public/logo.png" alt="AgentKey Logo" width="150" height="150">
+</p>
+
+
 ## Overview
 AgentKey is a centralized credential management platform specifically designed for AI agents. It provides a secure, production-ready environment for storing, rotating, and accessing credentials using industry-standard encryption and short-lived ephemeral tokens.
 

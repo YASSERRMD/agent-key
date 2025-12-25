@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE agent_api_keys\n            SET status = 'revoked', revoked_at = CURRENT_TIMESTAMP\n            WHERE id = $1 AND agent_id = $2\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c4b3b682334e1e32dd6b853052539c2045049fc101fe7cf3b38cd5f17787f206"
+}

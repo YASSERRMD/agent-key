@@ -196,6 +196,30 @@ impl CredentialService {
         })
     }
 
+    /// List all credentials for a team (across all agents).
+    pub async fn list_team_credentials(
+        &self,
+        pool: &PgPool,
+        team_id: Uuid,
+        page: Option<i32>,
+        limit: Option<i32>,
+    ) -> Result<PaginatedResponse<CredentialResponse>, ApiError> {
+        let page = page.unwrap_or(1).max(1);
+        let limit = limit.unwrap_or(20).clamp(1, 100);
+
+        let (credentials, total) = Credential::find_by_team(pool, team_id, page, limit).await?;
+        
+        let total_pages = (total as f64 / limit as f64).ceil() as i32;
+
+        Ok(PaginatedResponse {
+            data: credentials.into_iter().map(|c| c.to_response()).collect(),
+            total,
+            page,
+            limit,
+            pages: total_pages,
+        })
+    }
+
     /// Update a credential.
     pub async fn update_credential(
         &self,

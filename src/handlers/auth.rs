@@ -159,7 +159,7 @@ pub async fn logout(
 /// - POST /logout
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(
-        web::scope("/api/v1/auth")
+        web::scope("/auth")
             .service(register)
             .service(login)
             .service(refresh_token)

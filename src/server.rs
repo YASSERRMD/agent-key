@@ -37,6 +37,7 @@ use crate::services::agent::AgentService;
 use crate::services::encryption::EncryptionService;
 use crate::services::credential::CredentialService;
 use crate::services::ephemeral_token::EphemeralTokenService;
+use crate::services::auth::AuthService;
 
 // ...
 
@@ -71,6 +72,7 @@ pub async fn run(
     
     let db_pool = web::Data::new(db.pool().clone());
     let jwt_service_data = web::Data::new(jwt_service.clone());
+    let auth_service = web::Data::new(Arc::new(AuthService::new(jwt_service.clone())));
 
     info!("Configuring HTTP server...");
 
@@ -89,6 +91,7 @@ pub async fn run(
             .app_data(credential_service.clone())
             .app_data(jwt_service_data.clone())
             .app_data(ephemeral_token_service.clone())
+            .app_data(auth_service.clone())
             // Middleware
             .wrap(TracingLogger::default())
             .wrap(cors)

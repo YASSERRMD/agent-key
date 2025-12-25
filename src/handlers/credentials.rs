@@ -24,12 +24,37 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/{credential_id}/decrypt", web::get().to(decrypt_credential))
             // Ephemeral token generation endpoint
             .route("/{credential_name}/token", web::post().to(super::tokens::generate_token))
+    )
+    .service(
+        web::scope("/credentials")
+            .route("", web::get().to(list_all_credentials))
     );
 }
 
 // =============================================================================
 // MANAGEMENT ENDPOINTS (USER AUTH)
 // =============================================================================
+
+/// List all credentials for the team.
+async fn list_all_credentials(
+    auth: AuthUser,
+    pool: web::Data<PgPool>,
+    service: web::Data<CredentialService>,
+    query: web::Query<crate::models::PaginationQuery>,
+) -> Result<HttpResponse, ApiError> {
+    RequireRole::viewer(&auth)?;
+
+    let response = service
+        .list_team_credentials(
+            &pool,
+            auth.team_id,
+            query.page,
+            query.limit,
+        )
+        .await?;
+
+    Ok(HttpResponse::Ok().json(response))
+}
 
 /// Create a new credential for an agent.
 async fn create_credential(

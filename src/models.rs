@@ -4,7 +4,7 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, PgPool, Row};
+use sqlx::{FromRow, PgPool, Row, Executor, Postgres};
 use uuid::Uuid;
 use validator::Validate;
 
@@ -149,6 +149,26 @@ pub struct Credential {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub deleted_at: Option<DateTime<Utc>>,
+}
+
+/// Dashboard statistics DTO.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DashboardStats {
+    pub total_agents: i64,
+    pub total_credentials: i64,
+    pub api_access_count: i64,
+    pub success_rate: f64,
+    pub recent_activity: Vec<ActivityLog>,
+}
+
+/// Activity log DTO for dashboard.
+#[derive(Debug, Serialize, Deserialize, FromRow)]
+pub struct ActivityLog {
+    pub id: i64,
+    pub description: String,
+    pub timestamp: DateTime<Utc>,
+    pub status: String,
+    pub ip_address: Option<serde_json::Value>, // Using Value to handle INET type flexibly if needed, or String
 }
 
 /// Credential version model.
@@ -557,7 +577,7 @@ pub struct VersionSummary {
 impl Team {
     /// Create a new team.
     pub async fn create(
-        pool: &PgPool,
+        executor: impl Executor<'_, Database = Postgres>,
         name: &str,
         owner_id: Uuid,
         plan: &str,
@@ -565,14 +585,14 @@ impl Team {
         let team = sqlx::query_as::<_, Team>(
             r#"
             INSERT INTO teams (name, owner_id, plan)
-            VALUES ($1, $2, $3)
-            RETURNING *
+            VALUES ($1, $2, $3::plan_tier)
+            RETURNING id, name, owner_id, plan::text, max_agents, max_credentials, max_monthly_reads, created_at, updated_at, deleted_at
             "#,
         )
         .bind(name)
         .bind(owner_id)
         .bind(plan)
-        .fetch_one(pool)
+        .fetch_one(executor)
         .await
         .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
 
@@ -583,7 +603,7 @@ impl Team {
     pub async fn find_by_id(pool: &PgPool, id: Uuid) -> Result<Option<Team>, ApiError> {
         let team = sqlx::query_as::<_, Team>(
             r#"
-            SELECT * FROM teams 
+            SELECT id, name, owner_id, plan::text, max_agents, max_credentials, max_monthly_reads, created_at, updated_at, deleted_at FROM teams 
             WHERE id = $1 AND deleted_at IS NULL
             "#,
         )
@@ -599,7 +619,7 @@ impl Team {
     pub async fn find_by_name(pool: &PgPool, name: &str) -> Result<Option<Team>, ApiError> {
         let team = sqlx::query_as::<_, Team>(
             r#"
-            SELECT * FROM teams 
+            SELECT id, name, owner_id, plan::text, max_agents, max_credentials, max_monthly_reads, created_at, updated_at, deleted_at FROM teams 
             WHERE LOWER(name) = LOWER($1) AND deleted_at IS NULL
             "#,
         )
@@ -612,18 +632,19 @@ impl Team {
     }
 
     /// Update team owner.
-    pub async fn update_owner(pool: &PgPool, id: Uuid, owner_id: Uuid) -> Result<Team, ApiError> {
+    pub async fn update_owner(executor: impl Executor<'_, Database = Postgres>, id: Uuid, owner_id: Uuid) -> Result<Team, ApiError> {
         let team = sqlx::query_as::<_, Team>(
             r#"
             UPDATE teams 
             SET owner_id = $2, updated_at = CURRENT_TIMESTAMP
             WHERE id = $1 AND deleted_at IS NULL
-            RETURNING *
+            RETURNING id, name, owner_id, plan::text, max_agents, max_credentials, max_monthly_reads, created_at, updated_at, deleted_at
             "#,
+
         )
         .bind(id)
         .bind(owner_id)
-        .fetch_one(pool)
+        .fetch_one(executor)
         .await
         .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
 
@@ -675,11 +696,12 @@ impl Team {
         let team = sqlx::query_as::<_, Team>(
             r#"
             UPDATE teams 
-            SET plan = $2, max_agents = $3, max_credentials = $4, 
+            SET plan = $2::plan_tier, max_agents = $3, max_credentials = $4, 
                 max_monthly_reads = $5, updated_at = CURRENT_TIMESTAMP
             WHERE id = $1 AND deleted_at IS NULL
-            RETURNING *
+            RETURNING id, name, owner_id, plan::text, max_agents, max_credentials, max_monthly_reads, created_at, updated_at, deleted_at
             "#,
+
         )
         .bind(id)
         .bind(plan)
@@ -701,7 +723,7 @@ impl Team {
 impl User {
     /// Create a new user.
     pub async fn create(
-        pool: &PgPool,
+        executor: impl Executor<'_, Database = Postgres>,
         email: &str,
         password_hash: &str,
         team_id: Uuid,
@@ -710,15 +732,15 @@ impl User {
         let user = sqlx::query_as::<_, User>(
             r#"
             INSERT INTO users (email, password_hash, team_id, role)
-            VALUES (LOWER($1), $2, $3, $4)
-            RETURNING *
+            VALUES (LOWER($1), $2, $3, $4::user_role)
+            RETURNING id, email, password_hash, team_id, role::text, is_active, last_login, created_at, updated_at, deleted_at
             "#,
         )
         .bind(email)
         .bind(password_hash)
         .bind(team_id)
         .bind(role)
-        .fetch_one(pool)
+        .fetch_one(executor)
         .await
         .map_err(|e| {
             if e.to_string().contains("duplicate key") || e.to_string().contains("unique") {
@@ -735,7 +757,7 @@ impl User {
     pub async fn find_by_email(pool: &PgPool, email: &str) -> Result<Option<User>, ApiError> {
         let user = sqlx::query_as::<_, User>(
             r#"
-            SELECT * FROM users 
+            SELECT id, email, password_hash, team_id, role::text, is_active, last_login, created_at, updated_at, deleted_at FROM users 
             WHERE LOWER(email) = LOWER($1) AND deleted_at IS NULL
             "#,
         )
@@ -751,7 +773,7 @@ impl User {
     pub async fn find_by_id(pool: &PgPool, id: Uuid) -> Result<Option<User>, ApiError> {
         let user = sqlx::query_as::<_, User>(
             r#"
-            SELECT * FROM users 
+            SELECT id, email, password_hash, team_id, role::text, is_active, last_login, created_at, updated_at, deleted_at FROM users 
             WHERE id = $1 AND deleted_at IS NULL
             "#,
         )
@@ -767,7 +789,7 @@ impl User {
     pub async fn find_by_team(pool: &PgPool, team_id: Uuid) -> Result<Vec<User>, ApiError> {
         let users = sqlx::query_as::<_, User>(
             r#"
-            SELECT * FROM users 
+            SELECT id, email, password_hash, team_id, role::text, is_active, last_login, created_at, updated_at, deleted_at FROM users 
             WHERE team_id = $1 AND deleted_at IS NULL
             ORDER BY created_at DESC
             "#,
@@ -871,7 +893,7 @@ impl Agent {
             r#"
             INSERT INTO agents (team_id, name, description, api_key_hash, created_by)
             VALUES ($1, $2, $3, $4, $5)
-            RETURNING *
+            RETURNING id, team_id, name, description, status::text, api_key_hash, last_used, usage_count, created_by, created_at, updated_at, deleted_at
             "#,
         )
         .bind(team_id)
@@ -911,7 +933,7 @@ impl Agent {
     pub async fn find_by_id(pool: &PgPool, id: Uuid) -> Result<Option<Agent>, ApiError> {
         let agent = sqlx::query_as::<_, Agent>(
             r#"
-            SELECT * FROM agents 
+            SELECT id, team_id, name, description, status::text, api_key_hash, last_used, usage_count, created_by, created_at, updated_at, deleted_at FROM agents 
             WHERE id = $1 AND deleted_at IS NULL
             "#,
         )
@@ -943,7 +965,7 @@ impl Agent {
             // Get the agent
             let agent = sqlx::query_as::<_, Agent>(
                 r#"
-                SELECT * FROM agents 
+                SELECT id, team_id, name, description, status::text, api_key_hash, last_used, usage_count, created_by, created_at, updated_at, deleted_at FROM agents 
                 WHERE id = $1 AND deleted_at IS NULL AND status = 'active'
                 "#,
             )
@@ -969,7 +991,7 @@ impl Agent {
 
         let agents = sqlx::query_as::<_, Agent>(
             r#"
-            SELECT * FROM agents 
+            SELECT id, team_id, name, description, status::text, api_key_hash, last_used, usage_count, created_by, created_at, updated_at, deleted_at FROM agents 
             WHERE team_id = $1 AND deleted_at IS NULL
             ORDER BY created_at DESC
             LIMIT $2 OFFSET $3
@@ -1026,7 +1048,7 @@ impl Agent {
             query.push_str(&format!(", status = ${}", params_count));
         }
 
-        query.push_str(" WHERE id = $1 AND deleted_at IS NULL RETURNING *");
+        query.push_str(" WHERE id = $1 AND deleted_at IS NULL RETURNING id, team_id, name, description, status::text, api_key_hash, last_used, usage_count, created_by, created_at, updated_at, deleted_at");
 
         let mut q = sqlx::query_as::<_, Agent>(&query).bind(id);
 
@@ -1170,7 +1192,7 @@ impl AgentApiKey {
             agent_id: k.agent_id,
             key_prefix: format!("{}...", &k.api_key_hash[..8]), // Placeholder prefix
             status: k.status.unwrap_or_else(|| "active".to_string()),
-            created_at: k.created_at.unwrap_or_else(|| Utc::now()),
+            created_at: k.created_at,
             expires_at: k.expires_at,
             last_used: k.last_used,
         }).collect())
@@ -1248,18 +1270,21 @@ impl Credential {
     ) -> Result<Credential, ApiError> {
         let mut tx = pool.begin().await.map_err(|e| ApiError::DatabaseError(e.to_string()))?;
 
+        // Default to 30 days if not provided, to satisfy NOT NULL constraint
+        let rotation_days = rotation_interval_days.unwrap_or(30);
+
         // Insert credential
         let credential = sqlx::query_as::<_, Credential>(
             r#"
             INSERT INTO credentials (
                 id, agent_id, team_id, name, credential_type, description, 
-                encrypted_value, created_by, rotation_enabled, rotation_interval_days,
-                next_rotation_due
+                encrypted_value, created_by, rotation_enabled, rotation_interval_minutes,
+                next_rotation
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+            VALUES ($1, $2, $3, $4, $5::credential_type, $6, $7, $8, $9, $10 * 1440,
                 CASE WHEN $9 THEN CURRENT_TIMESTAMP + ($10 || ' days')::INTERVAL ELSE NULL END
             )
-            RETURNING *
+            RETURNING id, agent_id, team_id, name, credential_type::text, description, encrypted_value, (status = 'active') as is_active, last_accessed, rotation_enabled, (rotation_interval_minutes / 1440) as rotation_interval_days, last_rotated, next_rotation as next_rotation_due, created_by, created_at, updated_at, deleted_at
             "#,
         )
         .bind(id)
@@ -1271,7 +1296,7 @@ impl Credential {
         .bind(&encrypted_value)
         .bind(created_by)
         .bind(rotation_enabled)
-        .bind(rotation_interval_days)
+        .bind(rotation_days)
         .fetch_one(&mut *tx)
         .await
         .map_err(|e| {
@@ -1290,7 +1315,7 @@ impl Credential {
             "#,
         )
         .bind(credential.id)
-        .bind(&encrypted_value)
+        .bind(&encrypted_value) // This must match type, assuming bytea
         .execute(&mut *tx)
         .await
         .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
@@ -1304,7 +1329,7 @@ impl Credential {
     pub async fn find_by_id(pool: &PgPool, id: Uuid) -> Result<Option<Credential>, ApiError> {
         let credential = sqlx::query_as::<_, Credential>(
             r#"
-            SELECT * FROM credentials 
+            SELECT id, agent_id, team_id, name, credential_type::text, description, encrypted_value, (status = 'active') as is_active, last_accessed, rotation_enabled, (rotation_interval_minutes / 1440) as rotation_interval_days, last_rotated, next_rotation as next_rotation_due, created_by, created_at, updated_at, deleted_at FROM credentials 
             WHERE id = $1 AND deleted_at IS NULL
             "#,
         )
@@ -1327,7 +1352,7 @@ impl Credential {
 
         let credentials = sqlx::query_as::<_, Credential>(
             r#"
-            SELECT * FROM credentials 
+            SELECT id, agent_id, team_id, name, credential_type::text, description, encrypted_value, (status = 'active') as is_active, last_accessed, rotation_enabled, (rotation_interval_minutes / 1440) as rotation_interval_days, last_rotated, next_rotation as next_rotation_due, created_by, created_at, updated_at, deleted_at FROM credentials 
             WHERE agent_id = $1 AND deleted_at IS NULL
             ORDER BY created_at DESC
             LIMIT $2 OFFSET $3
@@ -1354,6 +1379,44 @@ impl Credential {
         Ok((credentials, count.0))
     }
 
+    /// Find credentials by team (paginated).
+    pub async fn find_by_team(
+        pool: &PgPool,
+        team_id: Uuid,
+        page: i32,
+        limit: i32,
+    ) -> Result<(Vec<Credential>, i64), ApiError> {
+        let offset = (page - 1) * limit;
+
+        let credentials = sqlx::query_as::<_, Credential>(
+            r#"
+            SELECT id, agent_id, team_id, name, credential_type::text, description, encrypted_value, (status = 'active') as is_active, last_accessed, rotation_enabled, (rotation_interval_minutes / 1440) as rotation_interval_days, last_rotated, next_rotation as next_rotation_due, created_by, created_at, updated_at, deleted_at FROM credentials 
+            WHERE team_id = $1 AND deleted_at IS NULL
+            ORDER BY created_at DESC
+            LIMIT $2 OFFSET $3
+            "#,
+        )
+        .bind(team_id)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(pool)
+        .await
+        .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+
+        let count: (i64,) = sqlx::query_as(
+            r#"
+            SELECT COUNT(*) FROM credentials 
+            WHERE team_id = $1 AND deleted_at IS NULL
+            "#,
+        )
+        .bind(team_id)
+        .fetch_one(pool)
+        .await
+        .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+
+        Ok((credentials, count.0))
+    }
+
     /// Find a credential by name.
     pub async fn find_by_name(
         pool: &PgPool,
@@ -1362,7 +1425,7 @@ impl Credential {
     ) -> Result<Option<Credential>, ApiError> {
         let credential = sqlx::query_as::<_, Credential>(
             r#"
-            SELECT * FROM credentials 
+            SELECT id, agent_id, team_id, name, credential_type::text, description, encrypted_value, (status = 'active') as is_active, last_accessed, rotation_enabled, (rotation_interval_minutes / 1440) as rotation_interval_days, last_rotated, next_rotation as next_rotation_due, created_by, created_at, updated_at, deleted_at FROM credentials 
             WHERE agent_id = $1 AND name = $2 AND deleted_at IS NULL
             "#,
         )
@@ -1397,20 +1460,18 @@ impl Credential {
         }
         if rotation_interval_days.is_some() {
             params_count += 1;
-            query.push_str(&format!(", rotation_interval_days = ${}", params_count));
+            // Update minutes
+            query.push_str(&format!(", rotation_interval_minutes = ${} * 1440", params_count));
             
-            // Also update next_rotation_due if enabling
-             query.push_str(&format!(", next_rotation_due = CASE WHEN ${} THEN CURRENT_TIMESTAMP + (${} || ' days')::INTERVAL ELSE NULL END", params_count - 1, params_count));
+            // Also update next_rotation (column name)
+             query.push_str(&format!(", next_rotation = CASE WHEN ${} THEN CURRENT_TIMESTAMP + (${} || ' days')::INTERVAL ELSE NULL END", params_count - 1, params_count));
         } else if let Some(enabled) = rotation_enabled {
-             // If toggling rotation but keeping interval same, need to update due date logic
-             // This is simplified; proper logic would check current interval from DB if not provided, 
-             // but here we might just null it if disabled
              if !enabled {
-                 query.push_str(", next_rotation_due = NULL");
+                 query.push_str(", next_rotation = NULL");
              }
         }
 
-        query.push_str(" WHERE id = $1 AND deleted_at IS NULL RETURNING *");
+        query.push_str(" WHERE id = $1 AND deleted_at IS NULL RETURNING id, agent_id, team_id, name, credential_type::text, description, encrypted_value, (status = 'active') as is_active, last_accessed, rotation_enabled, (rotation_interval_minutes / 1440) as rotation_interval_days, last_rotated, next_rotation as next_rotation_due, created_by, created_at, updated_at, deleted_at");
 
         let mut q = sqlx::query_as::<_, Credential>(&query).bind(id);
 
@@ -1474,16 +1535,16 @@ impl Credential {
         .await
         .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
 
-        // Update credential
+            // Update credential
         let credential = sqlx::query_as::<_, Credential>(
             r#"
             UPDATE credentials 
             SET encrypted_value = $2, 
                 last_rotated = CURRENT_TIMESTAMP, 
                 updated_at = CURRENT_TIMESTAMP,
-                next_rotation_due = CASE WHEN rotation_enabled THEN CURRENT_TIMESTAMP + (rotation_interval_days || ' days')::INTERVAL ELSE NULL END
+                next_rotation = CASE WHEN rotation_enabled THEN CURRENT_TIMESTAMP + (rotation_interval_minutes || ' minutes')::INTERVAL ELSE NULL END
             WHERE id = $1
-            RETURNING *
+            RETURNING id, agent_id, team_id, name, credential_type::text, description, encrypted_value, (status = 'active') as is_active, last_accessed, rotation_enabled, (rotation_interval_minutes / 1440) as rotation_interval_days, last_rotated, next_rotation as next_rotation_due, created_by, created_at, updated_at, deleted_at
             "#,
         )
         .bind(id)
@@ -1553,7 +1614,7 @@ impl Credential {
 
 /// Log an audit event.
 pub async fn log_audit_event(
-    pool: &PgPool,
+    executor: impl Executor<'_, Database = Postgres>,
     team_id: Uuid,
     user_id: Option<Uuid>,
     event_type: &str,
@@ -1576,7 +1637,7 @@ pub async fn log_audit_event(
     .bind(resource_id)
     .bind(change_description)
     .bind(ip_address)
-    .execute(pool)
+    .execute(executor)
     .await
     .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
 

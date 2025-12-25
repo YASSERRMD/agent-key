@@ -65,6 +65,9 @@ impl AuthService {
                 ApiError::BadRequest(e.to_string())
             })?;
 
+        // Start transaction
+        let mut tx = pool.begin().await.map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+
         // Check if email already exists
         if User::find_by_email(pool, &request.email).await?.is_some() {
             warn!("Registration failed: email already exists");
@@ -83,10 +86,10 @@ impl AuthService {
             .unwrap_or_else(|| format!("{}'s Team", request.email.split('@').next().unwrap_or("User")));
 
         let temp_owner_id = Uuid::new_v4();
-        let team = Team::create(pool, &team_name, temp_owner_id, "free").await?;
+        let team = Team::create(&mut *tx, &team_name, temp_owner_id, "free").await?;
 
         // Create user as admin of the new team
-        let user = match User::create(pool, &request.email, &password_hash, team.id, "admin").await
+        let user = match User::create(&mut *tx, &request.email, &password_hash, team.id, "admin").await
         {
             Ok(user) => user,
             Err(e) => {
@@ -97,7 +100,7 @@ impl AuthService {
         };
 
         // Update team owner to the new user
-        Team::update_owner(pool, team.id, user.id).await?;
+        Team::update_owner(&mut *tx, team.id, user.id).await?;
 
         // Generate tokens
         let access_token = self
@@ -112,7 +115,7 @@ impl AuthService {
 
         // Log registration event
         if let Err(e) = log_audit_event(
-            pool,
+            &mut *tx,
             team.id,
             Some(user.id),
             "register",
@@ -125,6 +128,10 @@ impl AuthService {
         {
             warn!("Failed to log registration event: {}", e);
         }
+
+        // Commit transaction
+        tx.commit().await.map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+
 
         info!("User registered successfully: {}", user.email);
 

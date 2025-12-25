@@ -57,9 +57,12 @@ CREATE TABLE agents (
     status agent_status DEFAULT 'active' NOT NULL,
     framework VARCHAR(50),
     config JSONB,
+    api_key_hash VARCHAR(255) NOT NULL,
+    usage_count INT DEFAULT 0 NOT NULL,
+    created_by UUID NOT NULL REFERENCES users(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    last_active TIMESTAMP WITH TIME ZONE,
+    last_used TIMESTAMP WITH TIME ZONE,
     deleted_at TIMESTAMP WITH TIME ZONE,
     CONSTRAINT agents_team_name_unique UNIQUE (team_id, name)
 );
@@ -72,11 +75,12 @@ CREATE TABLE credentials (
     agent_id UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     credential_type credential_type NOT NULL,
-    encrypted_value TEXT NOT NULL,
+    encrypted_value BYTEA NOT NULL,
     encryption_key_version INT DEFAULT 1 NOT NULL,
     rotation_enabled BOOLEAN DEFAULT true NOT NULL,
     rotation_interval_minutes INT DEFAULT 60 NOT NULL,
     metadata JSONB,
+    created_by UUID NOT NULL REFERENCES users(id),
     last_rotated TIMESTAMP WITH TIME ZONE,
     next_rotation TIMESTAMP WITH TIME ZONE,
     expires_at TIMESTAMP WITH TIME ZONE,
@@ -138,18 +142,17 @@ CREATE TABLE audit_events (
 );
 
 -- ============================================================================
--- API KEYS TABLE (SDK Authentication)
+-- AGENT API KEYS TABLE (SDK Authentication)
 -- ============================================================================
-CREATE TABLE api_keys (
+CREATE TABLE agent_api_keys (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     agent_id UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
-    key_hash VARCHAR(255) NOT NULL,
-    key_prefix VARCHAR(10),
-    name VARCHAR(255),
-    last_used TIMESTAMP WITH TIME ZONE,
+    api_key_hash VARCHAR(255) NOT NULL,
+    status VARCHAR(50) DEFAULT 'active',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
     expires_at TIMESTAMP WITH TIME ZONE,
-    CONSTRAINT api_keys_hash_unique UNIQUE (key_hash)
+    revoked_at TIMESTAMP WITH TIME ZONE,
+    CONSTRAINT agent_api_keys_hash_unique UNIQUE (api_key_hash)
 );
 
 -- ============================================================================
@@ -211,8 +214,8 @@ CREATE INDEX idx_audit_events_resource ON audit_events(resource_type, resource_i
 CREATE INDEX idx_audit_events_user ON audit_events(user_id) WHERE user_id IS NOT NULL;
 
 -- API keys indexes
-CREATE INDEX idx_api_keys_agent ON api_keys(agent_id);
-CREATE INDEX idx_api_keys_prefix ON api_keys(key_prefix);
+CREATE INDEX idx_agent_api_keys_agent ON agent_api_keys(agent_id);
+CREATE INDEX idx_agent_api_keys_hash ON agent_api_keys(api_key_hash);
 
 -- Usage metrics indexes
 CREATE INDEX idx_usage_metrics_team_month ON usage_metrics(team_id, month DESC);

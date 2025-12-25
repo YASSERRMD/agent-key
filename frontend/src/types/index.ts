@@ -87,10 +87,9 @@ export interface LoginFormData {
 export interface SignupFormData {
     email: string;
     password: string;
-    confirm_password: string;
-    name: string;
-    terms_accepted: boolean;
+    team_name?: string;
 }
+
 
 export interface CreateAgentData {
     name: string;
@@ -110,6 +109,7 @@ export interface UpdateAgentData {
 
 export interface CreateCredentialData {
     name: string;
+    agent_id: string;
     credential_type: string;
     description?: string;
     secret: string;

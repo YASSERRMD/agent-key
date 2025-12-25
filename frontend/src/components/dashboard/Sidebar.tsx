@@ -33,7 +33,10 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
             collapsed ? "w-16" : "w-64"
         )}>
             <div className="flex h-16 items-center justify-between px-4 border-b">
-                {!collapsed && <span className="text-xl font-bold text-primary">AgentKey</span>}
+                <div className="flex items-center gap-2">
+                    <img src="/logo.png" alt="AgentKey" className="h-8 w-8" />
+                    {!collapsed && <span className="text-xl font-bold text-primary">AgentKey</span>}
+                </div>
                 <button
                     onClick={onToggle}
                     className="rounded-md p-1 hover:bg-gray-100 transition-colors"

@@ -2,16 +2,47 @@ import DashboardLayout from '../components/dashboard/DashboardLayout';
 import { useAuth } from '../hooks/useAuth';
 import { Users, Key, ShieldCheck, Activity } from 'lucide-react';
 import Card from '../components/common/Card';
+import { useState, useEffect } from 'react';
+import type { DashboardStats } from '../services/dashboardService';
+import { dashboardService } from '../services/dashboardService';
+import { cn } from '../utils/cn';
 
 export default function DashboardPage() {
     const { user } = useAuth();
+    const [stats, setStats] = useState<DashboardStats | null>(null);
+    const [loading, setLoading] = useState(true);
 
-    const stats = [
-        { title: 'Total Agents', value: '12', icon: Users, color: 'text-blue-600', bg: 'bg-blue-100' },
-        { title: 'Credentials', value: '48', icon: Key, color: 'text-teal-600', bg: 'bg-teal-100' },
-        { title: 'API Access', value: '1.2k', icon: ShieldCheck, color: 'text-purple-600', bg: 'bg-purple-100' },
-        { title: 'Success Rate', value: '99.9%', icon: Activity, color: 'text-green-600', bg: 'bg-green-100' },
+    useEffect(() => {
+        const fetchStats = async () => {
+            try {
+                const data = await dashboardService.getStats();
+                setStats(data);
+            } catch (error) {
+                console.error("Failed to fetch dashboard stats", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchStats();
+    }, []);
+
+    const statCards = [
+        { title: 'Total Agents', value: stats?.total_agents.toString() || '0', icon: Users, color: 'text-blue-600', bg: 'bg-blue-100' },
+        { title: 'Credentials', value: stats?.total_credentials.toString() || '0', icon: Key, color: 'text-teal-600', bg: 'bg-teal-100' },
+        { title: 'API Access', value: stats?.api_access_count.toString() || '0', icon: ShieldCheck, color: 'text-purple-600', bg: 'bg-purple-100' },
+        { title: 'Success Rate', value: `${stats?.success_rate || 99.9}%`, icon: Activity, color: 'text-green-600', bg: 'bg-green-100' },
     ];
+
+    if (loading) {
+        return (
+            <DashboardLayout>
+                <div className="flex items-center justify-center h-full">
+                    <p className="text-gray-500">Loading dashboard...</p>
+                </div>
+            </DashboardLayout>
+        );
+    }
 
     return (
         <DashboardLayout>
@@ -22,7 +53,7 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                    {stats.map((stat) => (
+                    {statCards.map((stat) => (
                         <Card key={stat.title} className="flex items-center p-6 bg-white border border-gray-200 shadow-sm rounded-xl">
                             <div className={cn("p-3 rounded-lg mr-4", stat.bg)}>
                                 <stat.icon size={24} className={stat.color} />
@@ -39,20 +70,27 @@ export default function DashboardPage() {
                     <Card className="lg:col-span-2 p-6 bg-white border border-gray-200 shadow-sm rounded-xl min-h-[400px]">
                         <h3 className="text-lg font-semibold mb-6">Recent Activity</h3>
                         <div className="space-y-6">
-                            {[1, 2, 3, 4, 5].map((i) => (
-                                <div key={i} className="flex items-start gap-4">
-                                    <div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
-                                        <Activity size={16} className="text-gray-500" />
+                            {stats?.recent_activity.length === 0 ? (
+                                <p className="text-gray-500 text-sm">No recent activity.</p>
+                            ) : (
+                                stats?.recent_activity.map((activity) => (
+                                    <div key={activity.id} className="flex items-start gap-4">
+                                        <div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
+                                            <Activity size={16} className="text-gray-500" />
+                                        </div>
+                                        <div className="flex-1 border-b pb-4 last:border-0">
+                                            <p className="text-sm font-medium">{activity.description}</p>
+                                            <p className="text-xs text-gray-400 mt-1">
+                                                {new Date(activity.timestamp).toLocaleString()}
+                                                {activity.ip_address && ` • IP ${activity.ip_address}`}
+                                            </p>
+                                        </div>
+                                        <div className="px-2 py-1 rounded text-[10px] font-bold uppercase bg-green-100 text-green-700">
+                                            {activity.status}
+                                        </div>
                                     </div>
-                                    <div className="flex-1 border-b pb-4 last:border-0">
-                                        <p className="text-sm font-medium">Agent "Alpha-1" accessed credential "DB_PASS"</p>
-                                        <p className="text-xs text-gray-400 mt-1">2 hours ago • IP 192.168.1.45</p>
-                                    </div>
-                                    <div className="px-2 py-1 rounded text-[10px] font-bold uppercase bg-green-100 text-green-700">
-                                        Success
-                                    </div>
-                                </div>
-                            ))}
+                                ))
+                            )}
                         </div>
                     </Card>
 
@@ -76,7 +114,3 @@ export default function DashboardPage() {
     );
 }
 
-// Inline helper for now as Card helper isn't made yet
-function cn(...inputs: any[]) {
-    return inputs.filter(Boolean).join(' ');
-}
