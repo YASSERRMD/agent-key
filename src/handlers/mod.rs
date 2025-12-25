@@ -8,6 +8,8 @@ pub mod agents;
 pub mod credentials;
 pub mod tokens;
 pub mod stats;
+pub mod users;
+pub mod api_keys;
 
 use actix_web::web;
 
@@ -37,7 +39,7 @@ pub fn configure_routes(cfg: &mut web::ServiceConfig) {
             .configure(tokens::config)
             .configure(auth::configure)
             .configure(stats::config)
+            .configure(users::configure)
+            .configure(api_keys::configure)
     );
-
-
 }

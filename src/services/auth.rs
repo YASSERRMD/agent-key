@@ -320,6 +320,30 @@ impl AuthService {
         Ok((user_id, team_id, claims.role))
     }
 
+    /// Hash a password using the password service.
+    pub fn hash_password(&self, password: &str) -> Result<String, ApiError> {
+        self.password_service.hash(password).map_err(|e| {
+            ApiError::InternalError(format!("Failed to hash password: {}", e))
+        })
+    }
+
+    /// Verify a password against a hash.
+    pub fn verify_password(&self, password: &str, hash: &str) -> Result<bool, ApiError> {
+        self.password_service.verify(password, hash).map_err(|e| {
+            ApiError::InternalError(format!("Failed to verify password: {}", e))
+        })
+    }
+
+    /// Hash an API key for storage.
+    pub fn hash_api_key(&self, api_key: &str) -> Result<String, ApiError> {
+        // Use SHA256 for API keys (faster than bcrypt, still secure for random keys)
+        use sha2::{Sha256, Digest};
+        let mut hasher = Sha256::new();
+        hasher.update(api_key.as_bytes());
+        let result = hasher.finalize();
+        Ok(format!("{:x}", result))
+    }
+
     /// Log an authentication event.
     pub async fn log_auth_event(
         pool: &PgPool,
