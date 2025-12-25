@@ -6,10 +6,13 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
     variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
     size?: 'sm' | 'md' | 'lg';
     isLoading?: boolean;
+    loading?: boolean; // Alias for isLoading
 }
 
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-    ({ className, variant = 'primary', size = 'md', isLoading, children, disabled, ...props }, ref) => {
+    ({ className, variant = 'primary', size = 'md', isLoading, loading, children, disabled, ...props }, ref) => {
+        const isButtonLoading = isLoading || loading;
+
         const variants = {
             primary: 'bg-primary text-primary-foreground hover:bg-primary/90',
             secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
@@ -26,7 +29,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         return (
             <button
                 ref={ref}
-                disabled={disabled || isLoading}
+                disabled={disabled || isButtonLoading}
                 className={cn(
                     'inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
                     variants[variant],
@@ -35,7 +38,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
                 )}
                 {...props}
             >
-                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isButtonLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {children}
             </button>
         );

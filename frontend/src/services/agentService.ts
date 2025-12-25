@@ -3,28 +3,30 @@ import type { Agent, CreateAgentData, UpdateAgentData, PaginatedResponse, Create
 
 export const agentService = {
     async getAgents(page: number = 1, limit: number = 20): Promise<PaginatedResponse<Agent>> {
-        const response = await api.get('/api/v1/agents', {
+        const response = await api.get('/agents', {
             params: { page, limit },
         });
         return response.data;
     },
 
     async getAgent(id: string): Promise<Agent> {
-        const response = await api.get(`/api/v1/agents/${id}`);
+        const response = await api.get(`/agents/${id}`);
         return response.data;
     },
 
     async createAgent(data: CreateAgentData): Promise<CreateAgentResponse> {
-        const response = await api.post('/api/v1/agents', data);
+        const response = await api.post('/agents', data);
         return response.data;
     },
 
     async updateAgent(id: string, data: UpdateAgentData): Promise<Agent> {
-        const response = await api.patch(`/api/v1/agents/${id}`, data);
+        const response = await api.patch(`/agents/${id}`, data);
         return response.data;
     },
 
     async deleteAgent(id: string): Promise<void> {
-        await api.delete(`/api/v1/agents/${id}`);
+        await api.delete(`/agents/${id}`);
     },
 };
+
+export default agentService;

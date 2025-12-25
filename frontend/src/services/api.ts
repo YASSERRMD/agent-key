@@ -1,8 +1,8 @@
 import axios from 'axios';
 import type { AxiosInstance, AxiosError } from 'axios';
 
-// Create axios instance
-const apiBaseURL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+// Create axios instance with /api/v1 base path
+const apiBaseURL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1';
 
 const api: AxiosInstance = axios.create({
     baseURL: apiBaseURL,
@@ -35,17 +35,8 @@ api.interceptors.response.use(
             // @ts-ignore
             originalRequest._retry = true;
 
-            // Try to refresh token
             try {
-                // We need separate instance or careful call to avoid infinite loop
-                // Assuming refresh endpoint needs REFRESH token which might be in HttpOnly cookie?
-                // Prompt says "RefreshToken()" service method.
-                // If refresh token is in cookie, we just call post.
-                // If refresh token is in localStorage (bad practice but possible), we send it.
-                // Assuming cookie for refresh token as per typical secure setup, or we send 'Authorization' with old token?
-                // Actually, let's assume standard flow: Access Token expired.
-
-                const response = await axios.post(`${apiBaseURL}/api/v1/auth/refresh`, {}, { withCredentials: true });
+                const response = await axios.post(`${apiBaseURL}/auth/refresh`, {}, { withCredentials: true });
                 const newToken = response.data.token;
 
                 if (newToken) {
@@ -63,7 +54,13 @@ api.interceptors.response.use(
             }
         }
 
-        return Promise.reject(error);
+        // Extract error message from response
+        const errorMessage = (error.response?.data as any)?.message ||
+            (error.response?.data as any)?.error ||
+            error.message ||
+            'An error occurred';
+
+        return Promise.reject(new Error(errorMessage));
     }
 );
 

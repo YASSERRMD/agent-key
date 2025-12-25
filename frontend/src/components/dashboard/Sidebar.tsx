@@ -7,9 +7,11 @@ import {
     Settings,
     ChevronLeft,
     ChevronRight,
-    LogOut
+    LogOut,
+    FileText
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
+import ThemeToggle from '../common/ThemeToggle';
 
 interface SidebarProps {
     collapsed: boolean;
@@ -24,22 +26,23 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
         { title: 'Dashboard', icon: LayoutDashboard, path: '/' },
         { title: 'Agents', icon: Users, path: '/agents' },
         { title: 'Credentials', icon: Key, path: '/credentials' },
+        { title: 'Audit Log', icon: FileText, path: '/audit' },
         { title: 'Settings', icon: Settings, path: '/settings' },
     ];
 
     return (
         <div className={cn(
-            "flex flex-col border-r bg-white transition-all duration-300",
+            "flex flex-col border-r bg-white dark:bg-gray-900 dark:border-gray-800 transition-all duration-300",
             collapsed ? "w-16" : "w-64"
         )}>
-            <div className="flex h-16 items-center justify-between px-4 border-b">
+            <div className="flex h-16 items-center justify-between px-4 border-b dark:border-gray-800">
                 <div className="flex items-center gap-2">
                     <img src="/logo.png" alt="AgentKey" className="h-8 w-8" />
                     {!collapsed && <span className="text-xl font-bold text-primary">AgentKey</span>}
                 </div>
                 <button
                     onClick={onToggle}
-                    className="rounded-md p-1 hover:bg-gray-100 transition-colors"
+                    className="rounded-md p-1 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                 >
                     {collapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
                 </button>
@@ -47,7 +50,8 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
             <nav className="flex-1 space-y-1 p-2">
                 {navItems.map((item) => {
-                    const isActive = location.pathname === item.path;
+                    const isActive = location.pathname === item.path ||
+                        (item.path !== '/' && location.pathname.startsWith(item.path));
                     return (
                         <Link
                             key={item.path}
@@ -56,7 +60,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
                                 "flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors",
                                 isActive
                                     ? "bg-primary text-primary-foreground"
-                                    : "text-gray-700 hover:bg-gray-100",
+                                    : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800",
                                 collapsed && "justify-center px-2"
                             )}
                             title={collapsed ? item.title : undefined}
@@ -68,7 +72,14 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
                 })}
             </nav>
 
-            <div className="border-t p-2">
+            {/* Theme Toggle */}
+            {!collapsed && (
+                <div className="px-4 py-2 border-t dark:border-gray-800">
+                    <ThemeToggle />
+                </div>
+            )}
+
+            <div className="border-t dark:border-gray-800 p-2">
                 <button
                     onClick={logout}
                     className={cn(
