@@ -102,15 +102,24 @@ export default function ApiKeysSettings() {
             <Card className="p-6">
                 <div className="flex items-center justify-between mb-4">
                     <div>
-                        <h3 className="text-lg font-semibold">API Keys</h3>
-                        <p className="text-gray-500 text-sm">Manage API keys for programmatic access</p>
+                        <h3 className="text-lg font-semibold">Team API Keys (Admin)</h3>
+                        <p className="text-gray-500 text-sm">Manage administrative keys with full access to your team's data.</p>
                     </div>
                     {!showCreateForm && (
                         <Button onClick={() => setShowCreateForm(true)}>
                             <Plus className="h-4 w-4 mr-2" />
-                            Create Key
+                            Create Admin Key
                         </Button>
                     )}
+                </div>
+
+                <div className="mb-6 p-4 bg-blue-50 text-blue-800 rounded-lg text-sm border border-blue-100">
+                    <p className="font-semibold mb-1">Looking for Agent Keys?</p>
+                    <p>
+                        These keys provide <strong>full administrative access</strong> to your team.
+                        To create isolated keys for your agents (that can only access specific credentials),
+                        go to the <strong><a href="/agents" className="underline">Agents page</a></strong>, select an agent, and manage its keys there.
+                    </p>
                 </div>
 
                 {showCreateForm && (
