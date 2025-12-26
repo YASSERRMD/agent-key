@@ -11,6 +11,7 @@ pub mod tokens;
 pub mod stats;
 pub mod users;
 pub mod api_keys;
+pub mod audit;
 
 use actix_web::web;
 
@@ -43,6 +44,6 @@ pub fn configure_routes(cfg: &mut web::ServiceConfig) {
             .configure(stats::config)
             .configure(users::configure)
             .configure(api_keys::configure)
+            .configure(audit::configure)
     );
 }
-
