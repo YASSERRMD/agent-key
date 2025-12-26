@@ -254,6 +254,136 @@ class AgentKey:
         except requests.RequestException as e:
             raise ServerError(f"Network error: {e}")
 
+    def update_credential(
+        self,
+        credential_name: str,
+        new_secret: str,
+        description: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Update a credential's secret value.
+        
+        This allows programmatic rotation of secrets. The agent can update
+        its own credentials with new values.
+        
+        Args:
+            credential_name: Name of the credential to update
+            new_secret: The new secret value
+            description: Optional new description
+            
+        Returns:
+            Updated credential metadata (without the secret)
+            
+        Raises:
+            AuthenticationError: If API key is invalid
+            NotFoundError: If credential not found
+            ServerError: For server errors
+            
+        Example:
+            >>> agent.update_credential("openai-key", "sk-new-key-value")
+        """
+        if not self._agent_id:
+            raise AgentKeyError("Cannot determine agent_id from API key")
+        
+        # First, find the credential by name to get its ID
+        credentials = self.list_credentials(limit=100)
+        credential_id = None
+        for cred in credentials.get("data", []):
+            if cred.get("name") == credential_name:
+                credential_id = cred.get("id")
+                break
+        
+        if not credential_id:
+            raise NotFoundError(f"Credential '{credential_name}' not found")
+        
+        url = f"{self.base_url}/api/v1/credentials/{credential_id}"
+        payload: Dict[str, Any] = {"secret": new_secret}
+        if description is not None:
+            payload["description"] = description
+        
+        try:
+            response = self.session.patch(url, json=payload, timeout=self.timeout)
+            return self._handle_response(response)
+        except requests.RequestException as e:
+            raise ServerError(f"Network error: {e}")
+
+    def create_credential(
+        self,
+        name: str,
+        secret: str,
+        credential_type: str = "generic",
+        description: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Create a new credential for this agent.
+        
+        Args:
+            name: Unique name for the credential
+            secret: The secret value to store
+            credential_type: Type of credential (generic, aws, openai, database, api_key)
+            description: Optional description
+            
+        Returns:
+            Created credential metadata
+            
+        Raises:
+            AuthenticationError: If API key is invalid
+            ServerError: For server errors
+            
+        Example:
+            >>> agent.create_credential("new-api-key", "sk-xxx", credential_type="openai")
+        """
+        if not self._agent_id:
+            raise AgentKeyError("Cannot determine agent_id from API key")
+        
+        url = f"{self.base_url}/api/v1/agents/{self._agent_id}/credentials"
+        payload = {
+            "name": name,
+            "secret": secret,
+            "credential_type": credential_type,
+        }
+        if description:
+            payload["description"] = description
+        
+        try:
+            response = self.session.post(url, json=payload, timeout=self.timeout)
+            return self._handle_response(response)
+        except requests.RequestException as e:
+            raise ServerError(f"Network error: {e}")
+
+    def delete_credential(self, credential_name: str) -> None:
+        """
+        Delete a credential.
+        
+        Args:
+            credential_name: Name of the credential to delete
+            
+        Raises:
+            NotFoundError: If credential not found
+            ServerError: For server errors
+        """
+        if not self._agent_id:
+            raise AgentKeyError("Cannot determine agent_id from API key")
+        
+        # Find credential by name
+        credentials = self.list_credentials(limit=100)
+        credential_id = None
+        for cred in credentials.get("data", []):
+            if cred.get("name") == credential_name:
+                credential_id = cred.get("id")
+                break
+        
+        if not credential_id:
+            raise NotFoundError(f"Credential '{credential_name}' not found")
+        
+        url = f"{self.base_url}/api/v1/credentials/{credential_id}"
+        
+        try:
+            response = self.session.delete(url, timeout=self.timeout)
+            self._handle_response(response)
+        except requests.RequestException as e:
+            raise ServerError(f"Network error: {e}")
+
     def revoke_token(self, jti: str) -> None:
         """
         Revoke a token before expiration.
