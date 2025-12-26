@@ -9,7 +9,7 @@ import Badge from '../components/common/Badge';
 import Modal from '../components/common/Modal';
 import CredentialForm from '../components/credentials/CredentialForm';
 import { cn } from '../lib/utils';
-import { ChevronLeft, Key, Shield, History, Activity, Edit, Trash2, Plus, Lock, Eye, RefreshCw } from 'lucide-react';
+import { ChevronLeft, Key, Shield, History, Activity, Edit, Trash2, Plus, Lock, Eye } from 'lucide-react';
 import { format } from 'date-fns';
 import { useApiKeys } from '../hooks/useApiKeys';
 import ApiKeyList from '../components/api-keys/ApiKeyList';
@@ -32,8 +32,7 @@ export default function AgentDetailPage() {
         isLoading: credentialsLoading,
         createCredential,
         updateCredential,
-        deleteCredential,
-        rotateCredential
+        deleteCredential
     } = useCredentials(id);
 
     const {
@@ -85,16 +84,7 @@ export default function AgentDetailPage() {
         }
     };
 
-    const handleRotateCredential = async (credId: string) => {
-        if (window.confirm('Rotate this credential? The old value will be replaced with a new one.')) {
-            try {
-                setIsProcessing(true);
-                await rotateCredential(credId);
-            } finally {
-                setIsProcessing(false);
-            }
-        }
-    };
+
 
     const handleDeleteAgent = async () => {
         if (window.confirm('Are you sure you want to delete this agent? All associated credentials and API keys will also be deleted.')) {
@@ -241,14 +231,7 @@ export default function AgentDetailPage() {
                                                         <Badge variant={cred.is_active ? 'success' : 'gray'}>
                                                             {cred.is_active ? 'Active' : 'Inactive'}
                                                         </Badge>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            onClick={() => handleRotateCredential(cred.id)}
-                                                            title="Rotate credential"
-                                                        >
-                                                            <RefreshCw className="h-4 w-4" />
-                                                        </Button>
+
                                                         <Button
                                                             variant="ghost"
                                                             size="sm"

@@ -13,8 +13,6 @@ const credentialSchema = z.object({
     credential_type: z.string().min(1, 'Type is required'),
     description: z.string().optional(),
     secret: z.string().min(1, 'Secret is required'),
-    rotation_enabled: z.boolean().optional(),
-    rotation_interval_days: z.number().min(1).max(365).optional(),
 });
 
 interface CredentialFormProps {
@@ -42,15 +40,14 @@ export default function CredentialForm({ onSubmit, initialData, onCancel, isLoad
             }
         };
 
-        if (!initialData) {
+        if (!initialData && !agentId) {
             fetchAgents();
         }
-    }, [initialData]);
+    }, [initialData, agentId]);
 
     const {
         register,
         handleSubmit,
-        watch,
         formState: { errors },
     } = useForm<CreateCredentialData>({
         resolver: zodResolver(credentialSchema),
@@ -60,12 +57,8 @@ export default function CredentialForm({ onSubmit, initialData, onCancel, isLoad
             credential_type: initialData?.credential_type || 'generic',
             description: initialData?.description || '',
             secret: '', // We don't populate secret back for security
-            rotation_enabled: initialData?.rotation_enabled || false,
-            rotation_interval_days: initialData?.rotation_interval_days || 30,
         },
     });
-
-    const rotationEnabled = watch('rotation_enabled');
 
     return (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
@@ -127,29 +120,6 @@ export default function CredentialForm({ onSubmit, initialData, onCancel, isLoad
                 {...register('secret')}
                 error={errors.secret?.message}
             />
-
-            <div className="space-y-4 pt-2 border-t border-gray-100">
-                <div className="flex items-center">
-                    <input
-                        type="checkbox"
-                        id="rotation_enabled"
-                        {...register('rotation_enabled')}
-                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                    />
-                    <label htmlFor="rotation_enabled" className="ml-2 text-sm font-medium text-gray-700">
-                        Enable Automatic Rotation
-                    </label>
-                </div>
-
-                {rotationEnabled && (
-                    <Input
-                        label="Rotation Interval (Days)"
-                        type="number"
-                        {...register('rotation_interval_days', { valueAsNumber: true })}
-                        error={errors.rotation_interval_days?.message}
-                    />
-                )}
-            </div>
 
             <div className="flex justify-end gap-3 pt-4">
                 <Button variant="secondary" onClick={onCancel} type="button" disabled={isLoading}>
