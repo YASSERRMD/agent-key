@@ -89,15 +89,16 @@ export default function ProfileSettings() {
             <Card className="p-6">
                 <h3 className="text-lg font-semibold mb-4">Profile Picture</h3>
                 <div className="flex items-center gap-4">
-                    <div className="w-20 h-20 rounded-full bg-teal-100 flex items-center justify-center text-teal-600 text-2xl font-bold">
-                        {user?.name?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase()}
+                    <div className="w-20 h-20 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center text-white text-3xl font-bold shadow-lg">
+                        {(user?.name || user?.email || 'U').charAt(0).toUpperCase()}
                     </div>
                     <div>
-                        <Button variant="secondary" size="sm">
-                            <Camera className="h-4 w-4 mr-2" />
-                            Upload Photo
-                        </Button>
-                        <p className="mt-1 text-xs text-gray-500">JPG, PNG or GIF. Max 2MB.</p>
+                        <p className="font-medium text-gray-900">{user?.name || user?.email?.split('@')[0]}</p>
+                        <p className="text-sm text-gray-500">{user?.email}</p>
+                        <p className="text-xs text-gray-400 mt-2">
+                            <Camera className="inline h-3 w-3 mr-1" />
+                            Avatar upload coming soon
+                        </p>
                     </div>
                 </div>
             </Card>
