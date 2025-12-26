@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import DashboardLayout from '../components/dashboard/DashboardLayout';
 import { useAuth } from '../hooks/useAuth';
-import { Users, Key, ShieldCheck, Activity, Plus, Lock, Settings } from 'lucide-react';
+import { Users, Key, ShieldCheck, Activity, Plus, Lock, Settings, Eye, Clock, TrendingUp } from 'lucide-react';
 import Card from '../components/common/Card';
 import { useState, useEffect } from 'react';
 import type { DashboardStats } from '../services/dashboardService';
@@ -31,8 +31,8 @@ export default function DashboardPage() {
     const statCards = [
         { title: 'Total Agents', value: stats?.total_agents?.toString() || '0', icon: Users, color: 'text-blue-600', bg: 'bg-blue-100' },
         { title: 'Credentials', value: stats?.total_credentials?.toString() || '0', icon: Key, color: 'text-teal-600', bg: 'bg-teal-100' },
-        { title: 'Credential Retrievals', value: stats?.api_access_count?.toString() || '0', icon: ShieldCheck, color: 'text-purple-600', bg: 'bg-purple-100' },
-        { title: 'Success Rate', value: `${stats?.success_rate || 99.9}%`, icon: Activity, color: 'text-green-600', bg: 'bg-green-100' },
+        { title: 'Token Retrievals', value: stats?.api_access_count?.toString() || '0', icon: Eye, color: 'text-purple-600', bg: 'bg-purple-100', subtitle: 'Last 30 days' },
+        { title: 'Success Rate', value: `${stats?.success_rate || 99.9}%`, icon: TrendingUp, color: 'text-green-600', bg: 'bg-green-100' },
     ];
 
     const quickActions = [
@@ -69,9 +69,81 @@ export default function DashboardPage() {
                             <div>
                                 <p className="text-sm font-medium text-gray-500">{stat.title}</p>
                                 <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
+                                {(stat as any).subtitle && (
+                                    <p className="text-xs text-gray-400">{(stat as any).subtitle}</p>
+                                )}
                             </div>
                         </Card>
                     ))}
+                </div>
+
+                {/* SDK Usage Section */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <Card className="p-6 bg-gradient-to-br from-purple-50 to-blue-50 border border-purple-100">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-semibold text-gray-900">SDK Token Usage</h3>
+                            <div className="p-2 bg-purple-100 rounded-lg">
+                                <Eye className="h-5 w-5 text-purple-600" />
+                            </div>
+                        </div>
+                        <div className="space-y-4">
+                            <div className="flex justify-between items-center">
+                                <span className="text-sm text-gray-600">Ephemeral tokens generated</span>
+                                <span className="text-lg font-bold text-purple-600">{stats?.api_access_count || 0}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span className="text-sm text-gray-600">Active agents using SDK</span>
+                                <span className="text-lg font-bold text-blue-600">{stats?.total_agents || 0}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span className="text-sm text-gray-600">Credentials accessible</span>
+                                <span className="text-lg font-bold text-teal-600">{stats?.total_credentials || 0}</span>
+                            </div>
+                            <div className="pt-4 border-t border-purple-200">
+                                <p className="text-xs text-gray-500">
+                                    <Clock className="inline h-3 w-3 mr-1" />
+                                    Tokens are short-lived (5 min default) for security
+                                </p>
+                            </div>
+                        </div>
+                    </Card>
+
+                    <Card className="p-6 bg-gradient-to-br from-green-50 to-teal-50 border border-green-100">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-semibold text-gray-900">Security Status</h3>
+                            <div className="p-2 bg-green-100 rounded-lg">
+                                <ShieldCheck className="h-5 w-5 text-green-600" />
+                            </div>
+                        </div>
+                        <div className="space-y-4">
+                            <div className="flex justify-between items-center">
+                                <span className="text-sm text-gray-600">Encryption</span>
+                                <span className="text-sm font-medium text-green-600 flex items-center gap-1">
+                                    <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                                    AES-256-GCM
+                                </span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span className="text-sm text-gray-600">Token authentication</span>
+                                <span className="text-sm font-medium text-green-600 flex items-center gap-1">
+                                    <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                                    JWT Signed
+                                </span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span className="text-sm text-gray-600">Audit logging</span>
+                                <span className="text-sm font-medium text-green-600 flex items-center gap-1">
+                                    <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                                    Enabled
+                                </span>
+                            </div>
+                            <div className="pt-4 border-t border-green-200">
+                                <Link to="/audit" className="text-sm text-teal-600 hover:text-teal-700 font-medium">
+                                    View audit log →
+                                </Link>
+                            </div>
+                        </div>
+                    </Card>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -92,8 +164,21 @@ export default function DashboardPage() {
                             ) : (
                                 stats.recent_activity.map((activity) => (
                                     <div key={activity.id} className="flex items-start gap-4">
-                                        <div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
-                                            <Activity size={16} className="text-gray-500" />
+                                        <div className={cn(
+                                            "h-8 w-8 rounded-full flex items-center justify-center shrink-0",
+                                            activity.description.includes('token') || activity.description.includes('credential')
+                                                ? 'bg-purple-100'
+                                                : activity.description.includes('agent')
+                                                    ? 'bg-blue-100'
+                                                    : 'bg-gray-100'
+                                        )}>
+                                            {activity.description.includes('token') || activity.description.includes('credential') ? (
+                                                <Key size={16} className="text-purple-500" />
+                                            ) : activity.description.includes('agent') ? (
+                                                <Users size={16} className="text-blue-500" />
+                                            ) : (
+                                                <Activity size={16} className="text-gray-500" />
+                                            )}
                                         </div>
                                         <div className="flex-1 border-b pb-4 last:border-0">
                                             <p className="text-sm font-medium">{activity.description}</p>
