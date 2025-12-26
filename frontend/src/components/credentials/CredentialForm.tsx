@@ -22,9 +22,10 @@ interface CredentialFormProps {
     initialData?: Credential | null;
     onCancel: () => void;
     isLoading?: boolean;
+    agentId?: string; // Pre-selected agent ID when creating from agent detail page
 }
 
-export default function CredentialForm({ onSubmit, initialData, onCancel, isLoading }: CredentialFormProps) {
+export default function CredentialForm({ onSubmit, initialData, onCancel, isLoading, agentId }: CredentialFormProps) {
     const [agents, setAgents] = useState<Agent[]>([]);
     const [isLoadingAgents, setIsLoadingAgents] = useState(false);
 
@@ -55,7 +56,7 @@ export default function CredentialForm({ onSubmit, initialData, onCancel, isLoad
         resolver: zodResolver(credentialSchema),
         defaultValues: {
             name: initialData?.name || '',
-            agent_id: initialData?.agent_id || '',
+            agent_id: initialData?.agent_id || agentId || '',
             credential_type: initialData?.credential_type || 'generic',
             description: initialData?.description || '',
             secret: '', // We don't populate secret back for security
@@ -68,7 +69,8 @@ export default function CredentialForm({ onSubmit, initialData, onCancel, isLoad
 
     return (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-            {!initialData && (
+            {/* Only show agent dropdown when not editing and no agentId is pre-selected */}
+            {!initialData && !agentId && (
                 <div className="space-y-2">
                     <label className="text-sm font-medium">Agent</label>
                     <select
