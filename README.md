@@ -227,9 +227,11 @@ pip install agentkey
 ### Security Model
 
 1. **Credentials Encrypted**: AES-256-GCM with per-credential AAD
-2. **Access via Tokens**: Short-lived JWTs (5 min default)
+2. **Double-Key Architecture**: 
+   - **Agent API Key**: Long-lived identity key (used to request access)
+   - **Ephemeral Access Token**: Short-lived JWT (5 min) used to transport secrets
 3. **Agent Isolation**: Each agent can only access its own credentials
-4. **Audit Trail**: All access logged with IP and timestamp
+4. **Smart SDK**: Automatically handles token generation, caching, and refreshing
 
 ## Project Structure
 
