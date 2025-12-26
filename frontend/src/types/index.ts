@@ -2,12 +2,12 @@
 export interface User {
     id: string;
     email: string;
-    name: string;
+    name?: string;
     avatar_url?: string;
     role: 'admin' | 'developer' | 'viewer';
     team_id: string;
     created_at: string;
-    updated_at: string;
+    updated_at?: string;
 }
 
 // Agent types

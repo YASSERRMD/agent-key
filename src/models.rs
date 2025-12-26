@@ -35,6 +35,7 @@ pub struct Team {
 pub struct User {
     pub id: Uuid,
     pub email: String,
+    pub name: Option<String>,
     pub password_hash: String,
     pub team_id: Uuid,
     pub role: String,
@@ -399,6 +400,7 @@ pub struct RefreshResponse {
 pub struct UserProfile {
     pub id: Uuid,
     pub email: String,
+    pub name: Option<String>,
     pub team_id: Uuid,
     pub role: String,
     pub is_active: bool,
@@ -860,6 +862,7 @@ impl User {
         UserProfile {
             id: self.id,
             email: self.email.clone(),
+            name: self.name.clone(),
             team_id: self.team_id,
             role: self.role.clone(),
             is_active: self.is_active,
