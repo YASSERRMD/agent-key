@@ -1,0 +1,36 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.9.6, pytest-8.4.2, pluggy-1.6.0 -- /Library/Developer/CommandLineTools/usr/bin/python3
+cachedir: .pytest_cache
+rootdir: /Users/mdyasser/Documents/projects/agent-key/agent-key/sdk/python
+configfile: pyproject.toml
+plugins: anyio-4.12.0
+collecting ... collected 20 items
+
+tests/test_client.py::TestClientInitialization::test_client_initialization PASSED [  5%]
+tests/test_client.py::TestClientInitialization::test_client_initialization_empty_api_key PASSED [ 10%]
+tests/test_client.py::TestClientInitialization::test_client_extracts_agent_id PASSED [ 15%]
+tests/test_client.py::TestClientInitialization::test_client_user_agent_header PASSED [ 20%]
+tests/test_client.py::TestClientInitialization::test_client_repr PASSED  [ 25%]
+tests/test_client.py::TestTokenCaching::test_get_credential_token_caching PASSED [ 30%]
+tests/test_client.py::TestTokenCaching::test_get_credential_token_cache_expired PASSED [ 35%]
+tests/test_client.py::TestTokenCaching::test_is_token_valid_with_buffer PASSED [ 40%]
+tests/test_client.py::TestTokenCaching::test_clear_cache_specific PASSED [ 45%]
+tests/test_client.py::TestTokenCaching::test_clear_cache_all PASSED      [ 50%]
+tests/test_client.py::TestGetCredentialValue::test_get_credential_value PASSED [ 55%]
+tests/test_client.py::TestErrorHandling::test_authentication_error PASSED [ 60%]
+tests/test_client.py::TestErrorHandling::test_not_found_error PASSED     [ 65%]
+tests/test_client.py::TestErrorHandling::test_server_error PASSED        [ 70%]
+tests/test_client.py::TestHealthCheck::test_health_check_success PASSED  [ 75%]
+tests/test_client.py::TestHealthCheck::test_health_check_failure PASSED  [ 80%]
+tests/test_client.py::TestUtilityFunctions::test_parse_jwt_payload PASSED [ 85%]
+tests/test_client.py::TestUtilityFunctions::test_parse_jwt_payload_invalid PASSED [ 90%]
+tests/test_client.py::TestUtilityFunctions::test_extract_secret_from_token PASSED [ 95%]
+tests/test_client.py::TestUtilityFunctions::test_extract_secret_missing PASSED [100%]
+
+=============================== warnings summary ===============================
+../../../../../../Library/Python/3.9/lib/python/site-packages/urllib3/__init__.py:35
+  /Users/mdyasser/Library/Python/3.9/lib/python/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 20 passed, 1 warning in 1.75s =========================

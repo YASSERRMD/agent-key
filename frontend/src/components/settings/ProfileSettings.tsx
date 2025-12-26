@@ -10,7 +10,6 @@ import { User, Mail, Lock, Camera } from 'lucide-react';
 
 const profileSchema = z.object({
     name: z.string().min(1, 'Name is required').max(100),
-    email: z.string().email('Invalid email'),
 });
 
 const passwordSchema = z.object({
@@ -37,7 +36,6 @@ export default function ProfileSettings() {
         resolver: zodResolver(profileSchema),
         defaultValues: {
             name: user?.name || '',
-            email: user?.email || '',
         },
     });
 
@@ -49,7 +47,7 @@ export default function ProfileSettings() {
         try {
             setProfileLoading(true);
             setError(null);
-            await userService.updateProfile(data);
+            await userService.updateProfile({ name: data.name });
             setProfileSuccess(true);
             setTimeout(() => setProfileSuccess(false), 3000);
         } catch (err: any) {
@@ -126,13 +124,12 @@ export default function ProfileSettings() {
                             Email Address
                         </label>
                         <input
-                            {...profileForm.register('email')}
+                            value={user?.email || ''}
                             type="email"
-                            className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                            disabled
+                            className="w-full px-4 py-3 rounded-lg border border-gray-200 bg-gray-50 text-gray-500 cursor-not-allowed"
                         />
-                        {profileForm.formState.errors.email && (
-                            <p className="mt-1 text-sm text-red-600">{profileForm.formState.errors.email.message}</p>
-                        )}
+                        <p className="text-xs text-gray-400 mt-1">Email cannot be changed</p>
                     </div>
                     <div className="flex items-center gap-2">
                         <Button type="submit" isLoading={profileLoading}>

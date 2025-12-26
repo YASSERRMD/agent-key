@@ -15,7 +15,7 @@ use std::sync::Arc;
 /// Request body for updating user profile.
 #[derive(Debug, Deserialize)]
 pub struct UpdateProfileRequest {
-    pub email: Option<String>,
+    pub name: Option<String>,
 }
 
 /// Request body for changing password.
@@ -30,6 +30,7 @@ pub struct ChangePasswordRequest {
 pub struct ProfileResponse {
     pub id: String,
     pub email: String,
+    pub name: Option<String>,
     pub team_id: String,
     pub role: String,
     pub is_active: bool,
@@ -51,6 +52,7 @@ pub async fn get_profile(
     Ok(HttpResponse::Ok().json(ProfileResponse {
         id: user.id.to_string(),
         email: user.email,
+        name: user.name,
         team_id: user.team_id.to_string(),
         role: user.role,
         is_active: user.is_active,
@@ -60,7 +62,7 @@ pub async fn get_profile(
 
 /// PATCH /api/v1/users/me
 ///
-/// Update current user's profile.
+/// Update current user's profile (name only).
 #[patch("/me")]
 pub async fn update_profile(
     pool: web::Data<PgPool>,
@@ -71,15 +73,15 @@ pub async fn update_profile(
         .await?
         .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
 
-    // Update email if provided
-    let email = body.email.clone().unwrap_or(user.email.clone());
+    // Update name if provided
+    let name = body.name.clone().or(user.name.clone());
 
     // Update in database
-    sqlx::query!(
-        r#"UPDATE users SET email = $1, updated_at = NOW() WHERE id = $2"#,
-        email,
-        auth.user_id
+    sqlx::query(
+        r#"UPDATE users SET name = $1, updated_at = NOW() WHERE id = $2"#
     )
+    .bind(&name)
+    .bind(auth.user_id)
     .execute(pool.get_ref())
     .await
     .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
@@ -105,6 +107,7 @@ pub async fn update_profile(
     Ok(HttpResponse::Ok().json(ProfileResponse {
         id: updated_user.id.to_string(),
         email: updated_user.email,
+        name: updated_user.name,
         team_id: updated_user.team_id.to_string(),
         role: updated_user.role,
         is_active: updated_user.is_active,
