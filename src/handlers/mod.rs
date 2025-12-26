@@ -6,6 +6,7 @@ pub mod auth;
 pub mod health;
 pub mod agents;
 pub mod credentials;
+pub mod credential_types;
 pub mod tokens;
 pub mod stats;
 pub mod users;
@@ -32,6 +33,7 @@ pub fn configure_routes(cfg: &mut web::ServiceConfig) {
                     .service(health::detailed)
             )
             .configure(credentials::config)
+            .configure(credential_types::config)
             .service(
                 web::scope("/agents")
                     .configure(agents::configure)
@@ -43,3 +45,4 @@ pub fn configure_routes(cfg: &mut web::ServiceConfig) {
             .configure(api_keys::configure)
     );
 }
+

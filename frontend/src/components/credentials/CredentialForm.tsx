@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import type { Credential, CreateCredentialData, Agent } from '../../types';
 import { agentService } from '../../services/agentService';
+import { credentialTypeService, type CredentialType } from '../../services/credentialTypeService';
 import Input from '../common/Input';
 import Button from '../common/Button';
 
@@ -25,13 +26,15 @@ interface CredentialFormProps {
 
 export default function CredentialForm({ onSubmit, initialData, onCancel, isLoading, agentId }: CredentialFormProps) {
     const [agents, setAgents] = useState<Agent[]>([]);
+    const [credentialTypes, setCredentialTypes] = useState<CredentialType[]>([]);
     const [isLoadingAgents, setIsLoadingAgents] = useState(false);
+    const [isLoadingTypes, setIsLoadingTypes] = useState(false);
 
     useEffect(() => {
         const fetchAgents = async () => {
             try {
                 setIsLoadingAgents(true);
-                const response = await agentService.getAgents(1, 100); // Fetch up to 100 agents for dropdown
+                const response = await agentService.getAgents(1, 100);
                 setAgents(response.data);
             } catch (error) {
                 console.error('Failed to fetch agents', error);
@@ -40,9 +43,30 @@ export default function CredentialForm({ onSubmit, initialData, onCancel, isLoad
             }
         };
 
+        const fetchCredentialTypes = async () => {
+            try {
+                setIsLoadingTypes(true);
+                const types = await credentialTypeService.getCredentialTypes();
+                setCredentialTypes(types);
+            } catch (error) {
+                console.error('Failed to fetch credential types', error);
+                // Fallback to defaults if API fails
+                setCredentialTypes([
+                    { id: '1', name: 'generic', display_name: 'Generic', is_system: true, team_id: '', created_at: '' },
+                    { id: '2', name: 'api_key', display_name: 'API Key', is_system: true, team_id: '', created_at: '' },
+                    { id: '3', name: 'aws', display_name: 'AWS', is_system: true, team_id: '', created_at: '' },
+                    { id: '4', name: 'openai', display_name: 'OpenAI', is_system: true, team_id: '', created_at: '' },
+                    { id: '5', name: 'database', display_name: 'Database', is_system: true, team_id: '', created_at: '' },
+                ]);
+            } finally {
+                setIsLoadingTypes(false);
+            }
+        };
+
         if (!initialData && !agentId) {
             fetchAgents();
         }
+        fetchCredentialTypes();
     }, [initialData, agentId]);
 
     const {
@@ -56,7 +80,7 @@ export default function CredentialForm({ onSubmit, initialData, onCancel, isLoad
             agent_id: initialData?.agent_id || agentId || '',
             credential_type: initialData?.credential_type || 'generic',
             description: initialData?.description || '',
-            secret: '', // We don't populate secret back for security
+            secret: '',
         },
     });
 
@@ -94,14 +118,15 @@ export default function CredentialForm({ onSubmit, initialData, onCancel, isLoad
                 <div className="space-y-2">
                     <label className="text-sm font-medium">Type</label>
                     <select
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                         {...register('credential_type')}
+                        disabled={isLoadingTypes}
                     >
-                        <option value="generic">Generic</option>
-                        <option value="aws">AWS</option>
-                        <option value="openai">OpenAI</option>
-                        <option value="database">Database</option>
-                        <option value="api_key">API Key</option>
+                        {credentialTypes.map((type) => (
+                            <option key={type.id} value={type.name}>
+                                {type.display_name}
+                            </option>
+                        ))}
                     </select>
                 </div>
             </div>
