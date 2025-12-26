@@ -1,16 +1,39 @@
-MIT License
+AgentKey Source Available License
 
 Copyright (c) 2025 Mohamed Yasser
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+of this software and associated documentation files (the "Software"), to use,
+copy, modify, and distribute the Software for personal, educational, or 
+internal business purposes, subject to the following conditions:
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+1. NON-COMMERCIAL SERVICE RESTRICTION
+   You may NOT use the Software to provide a commercial service, hosted 
+   solution, Software-as-a-Service (SaaS), Platform-as-a-Service (PaaS), 
+   or any other offering where the Software's functionality is made 
+   available to third parties, whether for a fee or free of charge.
+
+2. PERMITTED USES
+   - Personal and educational use
+   - Internal business use within your organization
+   - Self-hosted deployments for your own applications
+   - Development, testing, and evaluation purposes
+   - Contributing improvements back to the project
+
+3. PROHIBITED USES
+   - Offering the Software as a managed service to third parties
+   - Hosting the Software for external customers or users
+   - Reselling access to the Software's functionality
+   - Creating a competing commercial service based on this Software
+
+4. ATTRIBUTION
+   The above copyright notice and this permission notice shall be included 
+   in all copies or substantial portions of the Software.
+
+5. MODIFICATIONS
+   You may modify the Software for your own use. If you distribute 
+   modifications, you must clearly indicate that changes were made and 
+   maintain this license.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -19,3 +42,8 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+---
+
+For commercial licensing inquiries or to obtain permission for uses not 
+covered by this license, please contact: [your-email@example.com]

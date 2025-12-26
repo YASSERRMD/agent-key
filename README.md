@@ -114,4 +114,17 @@ npm test
 ```
 
 ## License
-This project is licensed under the MIT License.
+
+This project is licensed under the **AgentKey Source Available License**.
+
+**You MAY:**
+- Use locally for personal, educational, or internal business purposes
+- Self-host for your own applications
+- Modify and contribute improvements
+
+**You MAY NOT:**
+- Offer as a SaaS, managed service, or hosted solution
+- Provide access to third parties as a commercial service
+
+See [LICENSE](LICENSE) for full terms.
+
