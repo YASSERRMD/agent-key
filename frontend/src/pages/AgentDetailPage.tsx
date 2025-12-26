@@ -1,17 +1,19 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAgentStore } from '../store/agentStore';
 import DashboardLayout from '../components/dashboard/DashboardLayout';
 import Button from '../components/common/Button';
 import Card from '../components/common/Card';
 import Badge from '../components/common/Badge';
 import { cn } from '../lib/utils';
-import { ChevronLeft, Key, Shield, History, Activity, Edit, Trash2, Plus } from 'lucide-react';
+import { ChevronLeft, Key, Shield, History, Activity, Edit, Trash2, Plus, Lock, Eye } from 'lucide-react';
 import { format } from 'date-fns';
 import { useApiKeys } from '../hooks/useApiKeys';
 import ApiKeyList from '../components/api-keys/ApiKeyList';
 import ApiKeyForm from '../components/api-keys/ApiKeyForm';
 import Modal from '../components/common/Modal';
+import { credentialService } from '../services/credentialService';
+import type { Credential } from '../types';
 
 export default function AgentDetailPage() {
     const { id } = useParams<{ id: string }>();
@@ -19,6 +21,17 @@ export default function AgentDetailPage() {
     const { currentAgent, fetchAgent, isLoading, error, deleteAgent } = useAgentStore();
     const [activeTab, setActiveTab] = useState<'credentials' | 'api-keys' | 'activity'>('credentials');
     const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+    const [showCredentialModal, setShowCredentialModal] = useState(false);
+    const [credentials, setCredentials] = useState<Credential[]>([]);
+    const [credentialsLoading, setCredentialsLoading] = useState(true);
+
+    // Credential form state
+    const [credName, setCredName] = useState('');
+    const [credType, setCredType] = useState('api_key');
+    const [credSecret, setCredSecret] = useState('');
+    const [credDescription, setCredDescription] = useState('');
+    const [creating, setCreating] = useState(false);
+    const [createError, setCreateError] = useState<string | null>(null);
 
     const {
         keys: apiKeys,
@@ -30,8 +43,48 @@ export default function AgentDetailPage() {
     useEffect(() => {
         if (id) {
             fetchAgent(id);
+            loadCredentials();
         }
     }, [id, fetchAgent]);
+
+    const loadCredentials = async () => {
+        if (!id) return;
+        try {
+            setCredentialsLoading(true);
+            const response = await credentialService.getCredentials(id);
+            setCredentials(response.data || []);
+        } catch (err) {
+            console.error('Failed to load credentials:', err);
+        } finally {
+            setCredentialsLoading(false);
+        }
+    };
+
+    const handleCreateCredential = async () => {
+        if (!credName.trim() || !credSecret.trim()) return;
+
+        try {
+            setCreating(true);
+            setCreateError(null);
+            await credentialService.createCredential({
+                name: credName,
+                agent_id: id!,
+                credential_type: credType,
+                secret: credSecret,
+                description: credDescription || undefined,
+            });
+            setShowCredentialModal(false);
+            setCredName('');
+            setCredType('api_key');
+            setCredSecret('');
+            setCredDescription('');
+            await loadCredentials();
+        } catch (err: any) {
+            setCreateError(err.message || 'Failed to create credential');
+        } finally {
+            setCreating(false);
+        }
+    };
 
     const handleDelete = async () => {
         if (window.confirm('Are you sure you want to delete this agent?')) {
@@ -129,10 +182,47 @@ export default function AgentDetailPage() {
                             {activeTab === 'credentials' && (
                                 <div className="space-y-4">
                                     <div className="flex justify-between items-center mb-4">
-                                        <h3 className="text-lg font-semiboldText text-gray-900">Assigned Credentials</h3>
-                                        <Button size="sm">Add Credential</Button>
+                                        <h3 className="text-lg font-semibold text-gray-900">Assigned Credentials</h3>
+                                        <Button size="sm" onClick={() => setShowCredentialModal(true)}>
+                                            <Plus size={16} className="mr-2" />
+                                            Add Credential
+                                        </Button>
                                     </div>
-                                    <p className="text-sm text-gray-500 text-center py-12">No credentials assigned to this agent.</p>
+                                    {credentialsLoading ? (
+                                        <p className="text-sm text-gray-500 text-center py-8">Loading credentials...</p>
+                                    ) : credentials.length === 0 ? (
+                                        <div className="text-center py-12">
+                                            <Lock className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                                            <p className="text-sm text-gray-500">No credentials assigned to this agent.</p>
+                                            <p className="text-xs text-gray-400 mt-1">Click "Add Credential" to create one.</p>
+                                        </div>
+                                    ) : (
+                                        <div className="divide-y">
+                                            {credentials.map((cred) => (
+                                                <div key={cred.id} className="py-4 flex items-center justify-between">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="p-2 bg-teal-50 rounded-lg">
+                                                            <Key className="h-5 w-5 text-teal-600" />
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-medium">{cred.name}</p>
+                                                            <p className="text-sm text-gray-500">{cred.credential_type}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-3">
+                                                        <Badge variant={cred.is_active ? 'success' : 'gray'}>
+                                                            {cred.is_active ? 'Active' : 'Inactive'}
+                                                        </Badge>
+                                                        <Link to={`/credentials/${cred.id}`}>
+                                                            <Button variant="ghost" size="sm">
+                                                                <Eye className="h-4 w-4" />
+                                                            </Button>
+                                                        </Link>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             )}
                             {activeTab === 'api-keys' && (
@@ -172,15 +262,99 @@ export default function AgentDetailPage() {
                 </div>
             </div>
 
+            {/* API Key Modal */}
             <Modal
                 isOpen={showApiKeyModal}
                 onClose={() => setShowApiKeyModal(false)}
-                title="Manage API Keys"
+                title="Generate API Key"
             >
                 <ApiKeyForm
                     onCreate={createKey}
                     onClose={() => setShowApiKeyModal(false)}
                 />
+            </Modal>
+
+            {/* Credential Modal */}
+            <Modal
+                isOpen={showCredentialModal}
+                onClose={() => setShowCredentialModal(false)}
+                title="Add Credential"
+            >
+                <div className="space-y-4">
+                    {createError && (
+                        <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+                            {createError}
+                        </div>
+                    )}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Credential Name *
+                        </label>
+                        <input
+                            type="text"
+                            value={credName}
+                            onChange={(e) => setCredName(e.target.value)}
+                            placeholder="e.g., OpenAI API Key"
+                            className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Type
+                        </label>
+                        <select
+                            value={credType}
+                            onChange={(e) => setCredType(e.target.value)}
+                            className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                        >
+                            <option value="api_key">API Key</option>
+                            <option value="oauth_token">OAuth Token</option>
+                            <option value="password">Password</option>
+                            <option value="certificate">Certificate</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Secret Value *
+                        </label>
+                        <input
+                            type="password"
+                            value={credSecret}
+                            onChange={(e) => setCredSecret(e.target.value)}
+                            placeholder="Enter the secret value"
+                            className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Description (optional)
+                        </label>
+                        <textarea
+                            value={credDescription}
+                            onChange={(e) => setCredDescription(e.target.value)}
+                            placeholder="What is this credential used for?"
+                            rows={2}
+                            className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                        />
+                    </div>
+                    <div className="flex gap-3 pt-2">
+                        <Button
+                            onClick={handleCreateCredential}
+                            isLoading={creating}
+                            disabled={!credName.trim() || !credSecret.trim()}
+                            className="flex-1"
+                        >
+                            Create Credential
+                        </Button>
+                        <Button
+                            variant="secondary"
+                            onClick={() => setShowCredentialModal(false)}
+                        >
+                            Cancel
+                        </Button>
+                    </div>
+                </div>
             </Modal>
         </DashboardLayout>
     );

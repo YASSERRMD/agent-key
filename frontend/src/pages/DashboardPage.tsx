@@ -31,7 +31,7 @@ export default function DashboardPage() {
     const statCards = [
         { title: 'Total Agents', value: stats?.total_agents?.toString() || '0', icon: Users, color: 'text-blue-600', bg: 'bg-blue-100' },
         { title: 'Credentials', value: stats?.total_credentials?.toString() || '0', icon: Key, color: 'text-teal-600', bg: 'bg-teal-100' },
-        { title: 'API Access', value: stats?.api_access_count?.toString() || '0', icon: ShieldCheck, color: 'text-purple-600', bg: 'bg-purple-100' },
+        { title: 'Credential Retrievals', value: stats?.api_access_count?.toString() || '0', icon: ShieldCheck, color: 'text-purple-600', bg: 'bg-purple-100' },
         { title: 'Success Rate', value: `${stats?.success_rate || 99.9}%`, icon: Activity, color: 'text-green-600', bg: 'bg-green-100' },
     ];
 
