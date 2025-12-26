@@ -759,7 +759,7 @@ impl User {
     pub async fn find_by_email(pool: &PgPool, email: &str) -> Result<Option<User>, ApiError> {
         let user = sqlx::query_as::<_, User>(
             r#"
-            SELECT id, email, password_hash, team_id, role::text, is_active, last_login, created_at, updated_at, deleted_at FROM users 
+            SELECT id, email, name, password_hash, team_id, role::text, is_active, last_login, created_at, updated_at, deleted_at FROM users 
             WHERE LOWER(email) = LOWER($1) AND deleted_at IS NULL
             "#,
         )
@@ -775,7 +775,7 @@ impl User {
     pub async fn find_by_id(pool: &PgPool, id: Uuid) -> Result<Option<User>, ApiError> {
         let user = sqlx::query_as::<_, User>(
             r#"
-            SELECT id, email, password_hash, team_id, role::text, is_active, last_login, created_at, updated_at, deleted_at FROM users 
+            SELECT id, email, name, password_hash, team_id, role::text, is_active, last_login, created_at, updated_at, deleted_at FROM users 
             WHERE id = $1 AND deleted_at IS NULL
             "#,
         )
@@ -791,7 +791,7 @@ impl User {
     pub async fn find_by_team(pool: &PgPool, team_id: Uuid) -> Result<Vec<User>, ApiError> {
         let users = sqlx::query_as::<_, User>(
             r#"
-            SELECT id, email, password_hash, team_id, role::text, is_active, last_login, created_at, updated_at, deleted_at FROM users 
+            SELECT id, email, name, password_hash, team_id, role::text, is_active, last_login, created_at, updated_at, deleted_at FROM users 
             WHERE team_id = $1 AND deleted_at IS NULL
             ORDER BY created_at DESC
             "#,
