@@ -58,19 +58,6 @@ agent = AgentKey(
 )
 ```
 
-### Admin Access
-
-You can also use a **Team Admin Key** (from Settings > API Keys) to initialize the client. Admin keys have universal access:
-
-```python
-# Initialize with Admin Key
-admin = AgentKey(api_key="ak_team_admin_key")
-
-# Admin can access ANY credential in the team
-# Useful for debugging, migration scripts, or super-agent orchestration
-any_cred = admin.get_credential_value("other-agent-secret")
-```
-
 ### Get Credential Value
 
 Get the decrypted secret value of a credential.
