@@ -65,28 +65,33 @@ AI agents often need access to multiple external services (OpenAI, AWS, database
 - CRUD operations for credentials
 - Async support
 
-## Quick Start
+## 📦 Installation
 
 ### Prerequisites
-- Docker and Docker Compose
-- Git
 
-### Installation
+*   Docker & Docker Compose
+*   Node.js 18+ (for frontend dev)
+*   Rust 1.75+ (for backend dev)
 
-```bash
-# Clone the repository
-git clone https://github.com/YASSERRMD/agent-key.git
-cd agent-key
+### Quick Start (Local Dev)
 
-# Copy environment file
-cp .env.example .env
+1.  **Clone the repository**:
+    ```bash
+    git clone https://github.com/YASSERRMD/agent-key.git
+    cd agent-key
+    ```
 
-# Start all services
-docker-compose up -d
+2.  **Start the stack**:
+    ```bash
+    docker-compose up -d --build
+    ```
+    The backend runs on `:8080`, frontend on `:3000`.
 
-# Access the dashboard
-open http://localhost:3000
-```
+3.  **Install SDK (from source)**:
+    ```bash
+    cd sdk/python
+    pip install -e .
+    ```
 
 ### Create Your First Agent
 
