@@ -73,6 +73,20 @@ AI agents often need access to multiple external services (OpenAI, AWS, database
 *   Node.js 18+ (for frontend dev)
 *   Rust 1.75+ (for backend dev)
 
+### Quick Start (Docker Hub)
+
+The fastest way to get AgentKey running is using our pre-built Docker images:
+
+```bash
+# Pull the images
+docker pull yasserrmd/agentkey-backend:latest
+docker pull yasserrmd/agentkey-frontend:latest
+
+# Run with docker-compose
+curl -O https://raw.githubusercontent.com/YASSERRMD/agent-key/main/docker-compose.yml
+docker-compose up -d
+```
+
 ### Quick Start (Local Dev)
 
 1.  **Clone the repository**:
@@ -286,6 +300,22 @@ cd frontend && npm test
 
 # Python SDK tests
 cd sdk/python && python -m pytest tests/
+```
+
+### Pushing to Docker Hub
+
+To build and push images to Docker Hub (replace `YASSERRMD` with your username):
+
+```bash
+# Backend
+docker build -t YASSERRMD/agentkey-backend:latest .
+docker tag YASSERRMD/agentkey-backend:latest YASSERRMD/agentkey-backend:0.1.0
+docker push YASSERRMD/agentkey-backend:latest
+docker push YASSERRMD/agentkey-backend:0.1.0
+
+# Frontend
+docker build -t YASSERRMD/agentkey-frontend:latest ./frontend
+docker push YASSERRMD/agentkey-frontend:latest
 ```
 
 ## Roadmap
